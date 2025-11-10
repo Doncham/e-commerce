@@ -1,4 +1,142 @@
 # 📦 E-Commerce ERD 설명서
+``` mermaid
+erDiagram
+    USER {
+        bigint id PK
+        varchar email "unique, not null"
+        varchar name
+        varchar password_hash
+        timestamp created_at
+    }
+
+    USER_POINT {
+        bigint user_id PK, FK
+        bigint balance "not null, default 0"
+        timestamp updated_at
+    }
+
+    USER_POINT_HISTORY {
+        bigint id PK
+        bigint user_id FK
+        varchar change_type
+        bigint amount
+        bigint balance_after
+        varchar reason
+        bigint order_id FK
+        timestamp expires_at
+        timestamp created_at
+    }
+
+    ADDRESS {
+        bigint id PK
+        bigint user_id FK
+        varchar receiver
+        varchar phone
+        varchar zipcode
+        varchar memo
+        boolean is_default "default false"
+    }
+
+    PRODUCT {
+        bigint id PK
+        varchar name
+        text description
+        decimal price
+        boolean is_active "default true"
+        timestamp created_at
+    }
+
+    INVENTORY {
+        bigint id PK
+        bigint product_id "unique, not null"
+        int stock
+        int reserved "default 0"
+        timestamp updated_at
+    }
+
+    CART_ITEM {
+        bigint id PK
+        bigint user_id FK
+        bigint product_id FK
+        int qty
+        timestamp created_at
+    }
+
+    "ORDER" {
+        bigint id PK
+        bigint user_id FK
+        bigint address_id FK
+        varchar status
+        decimal item_total
+        decimal coupon_discount
+        decimal pay_amount
+        timestamp created_at
+    }
+
+    ORDER_ITEM {
+        bigint id PK
+        bigint order_id FK
+        bigint product_id FK
+        varchar product_name_snap
+        decimal unit_price
+        int qty
+    }
+
+    PAYMENT {
+        bigint id PK
+        bigint order_id FK
+        varchar method
+        varchar status
+        decimal amount
+        timestamp approved_at
+    }
+
+    COUPON {
+        bigint id PK
+        varchar code "unique, not null"
+        varchar name
+        varchar type "not null"
+        decimal discount_value "not null"
+        decimal min_order_amount
+        timestamp start_at
+        timestamp end_at
+        boolean is_active "default true"
+        timestamp created_at
+    }
+
+    USER_COUPON {
+        bigint id PK
+        bigint user_id FK
+        bigint coupon_id FK
+        varchar status "not null, default ISSUED"
+        timestamp issued_at
+        timestamp used_at
+        bigint order_id FK
+    }
+
+    %% =========================
+    %% RELATIONSHIPS
+    %% =========================
+    USER ||--o{ ADDRESS : "has"
+    USER ||--|| USER_POINT : "has"
+    USER ||--o{ USER_POINT_HISTORY : "point-log"
+    USER ||--o{ CART_ITEM : "has"
+    USER ||--o{ "ORDER" : "places"
+    USER ||--o{ USER_COUPON : "owns"
+
+    PRODUCT ||--|| INVENTORY : "stock-of"
+    PRODUCT ||--o{ CART_ITEM : "in-cart"
+    PRODUCT ||--o{ ORDER_ITEM : "ordered"
+
+    "ORDER" ||--o{ ORDER_ITEM : "contains"
+    "ORDER" ||--o{ PAYMENT : "paid-by"
+    "ORDER" ||--|| ADDRESS : "delivered-to"
+    "ORDER" ||--o{ USER_POINT_HISTORY : "point-ref"
+    "ORDER" ||--o{ USER_COUPON : "uses"
+
+    COUPON ||--o{ USER_COUPON : "issued-to"
+```
+
 
 이 문서는 `user`, `product`, `order`, `payment`, `coupon`을 중심으로 하는 간단한 커머스 도메인의 ERD 구조를 설명합니다.  
 아래는 테이블별 컬럼 정의와 관계를 정리한 것입니다.
