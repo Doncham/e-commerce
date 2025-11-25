@@ -5,7 +5,6 @@ import static org.mockito.BDDMockito.*;
 
 import java.util.Optional;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -16,8 +15,8 @@ import kr.hhplus.be.server.inventory.Inventory;
 import kr.hhplus.be.server.inventory.InventoryRepository;
 import kr.hhplus.be.server.inventory.InventoryStatus;
 import kr.hhplus.be.server.inventory.exception.NotFoundInventoryException;
+import kr.hhplus.be.server.product.response.ProductDetailResponse;
 import kr.hhplus.be.server.user.User;
-import kr.hhplus.be.server.user.UserRepository;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {
@@ -47,7 +46,7 @@ class ProductServiceTest {
 				.build())
 		);
 		// when
-		ProductDetailDTO dto = productService.getProductDetail(productId);
+		ProductDetailResponse dto = productService.getProductDetail(productId);
 
 		// then
 		assertEquals("Test Product", dto.getName());
@@ -85,7 +84,7 @@ class ProductServiceTest {
 				.build())
 		);
 		// when
-		ProductDetailDTO dto = productService.getProductDetail(productId);
+		ProductDetailResponse dto = productService.getProductDetail(productId);
 
 		// then
 		assertEquals("Sold Out Product", dto.getName());
@@ -109,7 +108,7 @@ class ProductServiceTest {
 				.build())
 		);
 		// when
-		ProductDetailDTO dto = productService.getProductDetail(productId);
+		ProductDetailResponse dto = productService.getProductDetail(productId);
 
 		// then
 		assertEquals("In Stock Product", dto.getName());
@@ -117,7 +116,4 @@ class ProductServiceTest {
 		assertEquals(InventoryStatus.IN_STOCK.toString(), dto.getInventoryStatus());
 		assertEquals(null, dto.getStock());
 	}
-
-
-
 }

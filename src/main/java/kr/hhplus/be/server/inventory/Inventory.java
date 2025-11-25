@@ -1,5 +1,7 @@
 package kr.hhplus.be.server.inventory;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -8,9 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
+import kr.hhplus.be.server.entity.BaseTimeEntity;
 import kr.hhplus.be.server.product.Product;
 import lombok.Builder;
 import lombok.Getter;
@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @Entity
 @NoArgsConstructor
 @Getter
-public class Inventory {
+public class Inventory extends BaseTimeEntity {
 	@Id
 	@GeneratedValue(strategy = GenerationType.AUTO)
 	private Long id;
@@ -32,6 +32,8 @@ public class Inventory {
 	private Long stock;
 	@Column(nullable = false)
 	private Long reserved;
+	@Column(name = "deleted_at")
+	private LocalDateTime deletedAt;
 
 	@Builder
 	public Inventory(Product product, Long stock, Long reserved) {
