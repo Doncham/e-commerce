@@ -26,9 +26,6 @@ class ProductServiceTest {
 	@Mock
 	private InventoryRepository inventoryRepository;
 
-	@Mock
-	private User user;
-
 	// 상품 조회 성공 단위 테스트
 	@Test
 	void givenValidProductId_whenGetProductDetail_thenReturnProduct() {
