@@ -30,10 +30,14 @@ public class Product extends BaseTimeEntity {
 	@Column(name = "deleted_at")
 	private LocalDateTime deletedAt;
 
-	@Builder
-	public Product(String name, String description, Long price) {
+
+	private Product(String name, String description, Long price) {
 		this.name = name;
 		this.description = description;
 		this.price = price;
+	}
+
+	public static Product createProduct(String name, String description, Long price) {
+		return new Product(name, description, price);
 	}
 }

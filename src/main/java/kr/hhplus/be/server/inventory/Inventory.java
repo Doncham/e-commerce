@@ -35,15 +35,22 @@ public class Inventory extends BaseTimeEntity {
 	@Column(name = "deleted_at")
 	private LocalDateTime deletedAt;
 
-	@Builder
-	public Inventory(Product product, Long stock, Long reserved) {
+
+	private Inventory(Product product, Long stock, Long reserved) {
 		this.product = product;
 		this.stock = stock;
 		this.reserved = reserved;
+	}
+
+	public static Inventory of(Product product, Long stock, Long reserved) {
+		return new Inventory(product, stock, reserved);
 	}
 
 	public long availableStock() {
 		return Math.max(stock - reserved, 0);
 	}
 
+	public void reserveStock(int qty) {
+		this.reserved += qty;
+	}
 }

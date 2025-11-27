@@ -34,13 +34,11 @@ class ProductServiceTest {
 		long inventoryId = 1L;
 
 		when(inventoryRepository.findByProductId(productId)).thenReturn(
-			Optional.of(Inventory.builder()
-				.stock(100L)
-				.reserved(95L)
-				.product(
-					Product.builder().name("Test Product").price(1000L).build()
-				)
-				.build())
+			Optional.of(Inventory.of(
+				Product.createProduct("Test Product", "Test Product Desc", 1000L),
+				100L,
+				95L
+				))
 		);
 		// when
 		ProductDetailResponse dto = productService.getProductDetail(productId);
@@ -72,13 +70,11 @@ class ProductServiceTest {
 		long productId = 2L;
 
 		when(inventoryRepository.findByProductId(productId)).thenReturn(
-			Optional.of(Inventory.builder()
-				.stock(50L)
-				.reserved(50L)
-				.product(
-					Product.builder().name("Sold Out Product").price(2000L).build()
-				)
-				.build())
+			Optional.of(Inventory.of(
+				Product.createProduct("Sold Out Product", "Sold Out Product Desc", 2000L),
+				50L,
+				50L
+				))
 		);
 		// when
 		ProductDetailResponse dto = productService.getProductDetail(productId);
@@ -96,13 +92,11 @@ class ProductServiceTest {
 		long productId = 3L;
 
 		when(inventoryRepository.findByProductId(productId)).thenReturn(
-			Optional.of(Inventory.builder()
-				.stock(100L)
-				.reserved(20L)
-				.product(
-					Product.builder().name("In Stock Product").price(3000L).build()
-				)
-				.build())
+			Optional.of(Inventory.of(
+				Product.createProduct("In Stock Product", "In Stock Product Desc", 3000L),
+				100L,
+				20L
+				))
 		);
 		// when
 		ProductDetailResponse dto = productService.getProductDetail(productId);
