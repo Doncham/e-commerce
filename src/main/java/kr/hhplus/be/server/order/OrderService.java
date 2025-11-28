@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.address.Address;
 import kr.hhplus.be.server.address.AddressRepository;
@@ -16,7 +17,6 @@ import kr.hhplus.be.server.inventory.InventoryRepository;
 import kr.hhplus.be.server.inventory.exception.InSufficientStockException;
 import kr.hhplus.be.server.inventory.exception.NotFoundInventoryException;
 import kr.hhplus.be.server.order.request.OrderDraftCreateRequest;
-import kr.hhplus.be.server.order.response.CartItemResponse;
 import kr.hhplus.be.server.order.response.OrderDraftCreateResponse;
 import kr.hhplus.be.server.orderproduct.OrderProduct;
 import kr.hhplus.be.server.user.User;
@@ -32,6 +32,7 @@ public class OrderService {
 	private final CartItemRepository cartItemRepository;
 	private final InventoryRepository inventoryRepository;
 
+	@Transactional
 	public OrderDraftCreateResponse createOrder(OrderDraftCreateRequest request) {
 		Long addressId = request.getAddressId();
 		String memo = request.getMemo();
@@ -57,11 +58,12 @@ public class OrderService {
 			.collect(Collectors.toList());
 
 		List<Inventory> inventories = inventoryRepository.findByProductIdIn(productsIds);
+		// <productId, Inventory> 맵 생성
 		Map<Long, Inventory> inventoryMap = inventories.stream()
 			.collect(Collectors.toMap(inv -> inv.getProduct().getId(), inv -> inv));
 
 		// 재고 검증 + reserved 증가
-		for(CartItem ci : cartItems){
+		for(CartItem ci : cartItems) {
 			Inventory inv = inventoryMap.get(ci.getProduct().getId());
 			if(inv == null){
 				throw new NotFoundInventoryException(ci.getProduct().getId().toString());
@@ -76,10 +78,12 @@ public class OrderService {
 			// cartItem.getProduct().getId()로 inventory 조회 -> 수량 확인 -> 재고 부족 시 예외 처리
 			OrderProduct.create(ci.getProduct().getId(),
 				ci.getProduct().getName(),
-				ci.getProduct().getPrice(), ci.getQty())
+				ci.getProduct().getPrice(),
+				ci.getQty()
+			)
 		).collect(Collectors.toList());
 
-		Order order = Order.createOrder(user, shippingInfo, orderProducts, couponId, 0L, "빠른 배송 부탁드립니다.");
+		Order order = Order.createOrder(user, shippingInfo, orderProducts, couponId, 0L, memo);
 		orderRepository.save(order);
 
 		return OrderDraftCreateResponse.from(order);

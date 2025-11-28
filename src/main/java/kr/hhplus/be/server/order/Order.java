@@ -90,5 +90,14 @@ public class Order extends BaseTimeEntity {
 		return new Order(user, shippingInfo, items,
 			couponId, couponDiscount, memo);
 	}
+	public void paid() {
+		this.status = OrderStatus.PAID;
+	}
+	public void failed() {
+		this.status = OrderStatus.FAILED;
+	}
+	public boolean isPaid() {
+		return this.status == OrderStatus.PAID;
+	}
 	// 쿠폰 추가
 }

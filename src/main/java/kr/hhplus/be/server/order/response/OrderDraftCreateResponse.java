@@ -1,7 +1,6 @@
 package kr.hhplus.be.server.order.response;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,13 +19,13 @@ public class OrderDraftCreateResponse {
 	private final Long itemTotal;
 	private final int couponDiscount = 0;
 	private final Long payAmount;
-	private final List<CartItemResponse> items;
+	private final List<OrderProductResponse> items;
 	private final Long couponId;
 	private final LocalDateTime createdAt;
 
 	@Builder
 	public OrderDraftCreateResponse(Long orderId, String orderStatus, String address, String memo, Long itemTotal,
-		Long payAmount, List<CartItemResponse> items, Long couponId, LocalDateTime createdAt) {
+		Long payAmount, List<OrderProductResponse> items, Long couponId, LocalDateTime createdAt) {
 		this.orderId = orderId;
 		this.orderStatus = orderStatus;
 		this.address = address;
@@ -49,7 +48,7 @@ public class OrderDraftCreateResponse {
 			.couponId(order.getCouponId())
 			.createdAt(order.getCreatedAt())
 			.items(order.getOrderProducts().stream()
-				.map(CartItemResponse::from)
+				.map(OrderProductResponse::from)
 				.collect(Collectors.toList())
 			)
 			.build();
