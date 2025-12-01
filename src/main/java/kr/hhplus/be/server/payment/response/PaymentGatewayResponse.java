@@ -1,6 +1,6 @@
 package kr.hhplus.be.server.payment.response;
 
-import kr.hhplus.be.server.payment.PaymentGatewayStatus;
+import kr.hhplus.be.server.payment.domain.PaymentGatewayStatus;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 

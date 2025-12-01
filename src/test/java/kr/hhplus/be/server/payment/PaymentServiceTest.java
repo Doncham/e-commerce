@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 import java.util.List;
-import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,12 +14,16 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import kr.hhplus.be.server.order.Order;
-import kr.hhplus.be.server.order.OrderRepository;
 import kr.hhplus.be.server.order.OrderStatus;
 import kr.hhplus.be.server.order.ShippingInfo;
 import kr.hhplus.be.server.orderproduct.OrderProduct;
-import kr.hhplus.be.server.payment.exception.PaidOrderHavePaymentException;
+import kr.hhplus.be.server.payment.domain.Payment;
+import kr.hhplus.be.server.payment.domain.PaymentGatewayStatus;
+import kr.hhplus.be.server.payment.domain.PaymentStatus;
 import kr.hhplus.be.server.payment.exception.PayAmountMisMatchException;
+import kr.hhplus.be.server.payment.port.out.LoadOrderPort;
+import kr.hhplus.be.server.payment.port.out.PaymentGatewayPort;
+import kr.hhplus.be.server.payment.port.out.PaymentPort;
 import kr.hhplus.be.server.payment.request.PayResponse;
 import kr.hhplus.be.server.payment.request.PaymentGatewayRequest;
 import kr.hhplus.be.server.payment.response.PaymentGatewayResponse;
@@ -31,11 +34,11 @@ class PaymentServiceTest {
 	@InjectMocks
 	private PaymentService paymentService;
 	@Mock
-	private PaymentGatewayClient pgClient;
+	private PaymentGatewayPort pgClient;
 	@Mock
-	private PaymentRepository paymentRepository;
+	private PaymentPort paymentPort;
 	@Mock
-	private OrderRepository orderRepository;
+	private LoadOrderPort loadOrderPort;
 	@Mock
 	User user;
 	@Mock
@@ -50,8 +53,8 @@ class PaymentServiceTest {
 		// order 만들기
 		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
 		ReflectionTestUtils.setField(order, "id", orderId);
-		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(
-			Optional.of(order)
+		when(loadOrderPort.loadOrderForUpdate(orderId)).thenReturn(
+			order
 		);
 
 
@@ -84,7 +87,7 @@ class PaymentServiceTest {
 		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
 		ReflectionTestUtils.setField(order, "id", orderId);
 
-		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+		when(loadOrderPort.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		PaymentGatewayResponse pgResponse =
 			PaymentGatewayResponse.of("tx123", PaymentGatewayStatus.FAILURE, 2500L);
@@ -104,22 +107,36 @@ class PaymentServiceTest {
 	}
 
 	@Test
-	// 이미 결제된 주문에 대해 다시 결제 시도 시도 시 멱
+	// 이미 결제된 주문에 대해 다시 결제 시도 시도 시 이전에 성공한 결제 성공 정보를 제공한다..
 	void givenAlreadyPaidOrder_whenPay_thenSkipPaymentAndPgNotCalled() {
 		// given
 		Long orderId = 1L;
 		Order order = mock(Order.class);
+		Payment payment = mock(Payment.class);
 
-		when(orderRepository.findByIdForUpdate(orderId))
-			.thenReturn(Optional.of(order));
+		when(loadOrderPort.loadOrderForUpdate(orderId))
+			.thenReturn(order);
 		when(order.isPaid()).thenReturn(true);
+		when(order.getId()).thenReturn(orderId);
+		when(order.getStatus()).thenReturn(OrderStatus.PAID);
+		when(order.getPayAmount()).thenReturn(2500L);
+
+		when(paymentPort.loadLastSuccessPaymentByOrderId(orderId, PaymentStatus.SUCCESS))
+			.thenReturn(payment);
+		when(payment.getPgTransactionId())
+			.thenReturn("txAlready123");
 
 		// when
-		assertThrows(PaidOrderHavePaymentException.class, () -> paymentService.pay(orderId));
+		//assertThrows(PaidOrderHavePaymentException.class, () -> paymentService.pay(orderId));
+		PayResponse response = paymentService.pay(orderId);
 
 		// then
+		assertEquals(orderId, response.getOrderId());
+		assertEquals("PAID", response.getStatus());
+		assertEquals("txAlready123", response.getTransactionId());
+		assertEquals(2500L, response.getAmount());
 		verify(pgClient, never()).requestPayment(any());
-		verify(paymentRepository, never()).saveAndFlush(any());
+
 	}
 
 	@Test
@@ -132,7 +149,7 @@ class PaymentServiceTest {
 		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
 		ReflectionTestUtils.setField(order, "id", orderId);
 
-		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+		when(loadOrderPort.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		PaymentGatewayResponse pgResponse =
 			PaymentGatewayResponse.of("tx123", PaymentGatewayStatus.SUCCESS, 2000L); // 금액 불일치

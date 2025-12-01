@@ -1,4 +1,4 @@
-package kr.hhplus.be.server.payment;
+package kr.hhplus.be.server.payment.domain;
 
 public enum PaymentStatus {
 	REQUESTED,
