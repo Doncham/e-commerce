@@ -21,7 +21,7 @@ import kr.hhplus.be.server.payment.domain.Payment;
 import kr.hhplus.be.server.payment.domain.PaymentGatewayStatus;
 import kr.hhplus.be.server.payment.domain.PaymentStatus;
 import kr.hhplus.be.server.payment.exception.PayAmountMisMatchException;
-import kr.hhplus.be.server.payment.port.out.LoadOrderPort;
+import kr.hhplus.be.server.order.port.out.OrderPort;
 import kr.hhplus.be.server.payment.port.out.PaymentGatewayPort;
 import kr.hhplus.be.server.payment.port.out.PaymentPort;
 import kr.hhplus.be.server.payment.request.PayResponse;
@@ -38,7 +38,7 @@ class PaymentServiceTest {
 	@Mock
 	private PaymentPort paymentPort;
 	@Mock
-	private LoadOrderPort loadOrderPort;
+	private OrderPort orderPort;
 	@Mock
 	User user;
 	@Mock
@@ -53,7 +53,7 @@ class PaymentServiceTest {
 		// order 만들기
 		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
 		ReflectionTestUtils.setField(order, "id", orderId);
-		when(loadOrderPort.loadOrderForUpdate(orderId)).thenReturn(
+		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(
 			order
 		);
 
@@ -87,7 +87,7 @@ class PaymentServiceTest {
 		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
 		ReflectionTestUtils.setField(order, "id", orderId);
 
-		when(loadOrderPort.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		PaymentGatewayResponse pgResponse =
 			PaymentGatewayResponse.of("tx123", PaymentGatewayStatus.FAILURE, 2500L);
@@ -114,7 +114,7 @@ class PaymentServiceTest {
 		Order order = mock(Order.class);
 		Payment payment = mock(Payment.class);
 
-		when(loadOrderPort.loadOrderForUpdate(orderId))
+		when(orderPort.loadOrderForUpdate(orderId))
 			.thenReturn(order);
 		when(order.isPaid()).thenReturn(true);
 		when(order.getId()).thenReturn(orderId);
@@ -149,7 +149,7 @@ class PaymentServiceTest {
 		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
 		ReflectionTestUtils.setField(order, "id", orderId);
 
-		when(loadOrderPort.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		PaymentGatewayResponse pgResponse =
 			PaymentGatewayResponse.of("tx123", PaymentGatewayStatus.SUCCESS, 2000L); // 금액 불일치

@@ -16,7 +16,6 @@ import kr.hhplus.be.server.inventory.InventoryRepository;
 import kr.hhplus.be.server.inventory.InventoryStatus;
 import kr.hhplus.be.server.inventory.exception.NotFoundInventoryException;
 import kr.hhplus.be.server.product.response.ProductDetailResponse;
-import kr.hhplus.be.server.user.User;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {

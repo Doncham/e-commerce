@@ -11,7 +11,7 @@ import kr.hhplus.be.server.payment.domain.Payment;
 import kr.hhplus.be.server.payment.domain.PaymentGatewayStatus;
 import kr.hhplus.be.server.payment.domain.PaymentStatus;
 import kr.hhplus.be.server.payment.exception.PayAmountMisMatchException;
-import kr.hhplus.be.server.payment.port.out.LoadOrderPort;
+import kr.hhplus.be.server.order.port.out.OrderPort;
 import kr.hhplus.be.server.payment.port.out.PaymentGatewayPort;
 import kr.hhplus.be.server.payment.port.out.PaymentPort;
 import kr.hhplus.be.server.payment.request.PayResponse;
@@ -27,12 +27,12 @@ import lombok.extern.slf4j.Slf4j;
 public class PaymentService implements PayUseCase {
 	private final PaymentGatewayPort pgPort;
 	private final PaymentPort paymentPort;
-	private final LoadOrderPort loadOrderPort;
+	private final OrderPort orderPort;
 
 	@Override
 	@Transactional
 	public PayResponse pay(Long orderId) {
-		Order order = loadOrderPort.loadOrderForUpdate(orderId);
+		Order order = orderPort.loadOrderForUpdate(orderId);
 		// 멱등성 보장: 이미 결제된 주문이면 바로 반환 or 예외
 		if(order.isPaid()) {
 			// 도메인 규칙: 결제된 주문은 반드시 결제 기록이 있어야 한다 + 실패한 결제 기록 존재 가능.

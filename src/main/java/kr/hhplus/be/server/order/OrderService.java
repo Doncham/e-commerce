@@ -8,31 +8,34 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.address.Address;
-import kr.hhplus.be.server.address.AddressRepository;
 import kr.hhplus.be.server.cartItem.CartItem;
-import kr.hhplus.be.server.cartItem.CartItemRepository;
+import kr.hhplus.be.server.cartItem.port.out.CartItemPort;
 import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.inventory.Inventory;
-import kr.hhplus.be.server.inventory.InventoryRepository;
 import kr.hhplus.be.server.inventory.exception.InSufficientStockException;
 import kr.hhplus.be.server.inventory.exception.NotFoundInventoryException;
+import kr.hhplus.be.server.address.port.out.AddressPort;
+import kr.hhplus.be.server.inventory.port.out.InventoryPort;
+import kr.hhplus.be.server.order.port.in.OrderUseCase;
 import kr.hhplus.be.server.order.request.OrderDraftCreateRequest;
 import kr.hhplus.be.server.order.response.OrderDraftCreateResponse;
 import kr.hhplus.be.server.orderproduct.OrderProduct;
+import kr.hhplus.be.server.order.port.out.OrderPort;
 import kr.hhplus.be.server.user.User;
-import kr.hhplus.be.server.user.UserRepository;
+import kr.hhplus.be.server.user.port.out.UserPort;
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class OrderService {
-	private final OrderRepository orderRepository;
-	private final AddressRepository addressRepository;
-	private final UserRepository userRepository;
-	private final CartItemRepository cartItemRepository;
-	private final InventoryRepository inventoryRepository;
+public class OrderService implements OrderUseCase {
+	private final OrderPort orderPort;
+	private final AddressPort addressPort;
+	private final UserPort userPort;
+	private final CartItemPort cartItemPort;
+	private final InventoryPort inventoryPort;
 
 	@Transactional
+	@Override
 	public OrderDraftCreateResponse createOrder(OrderDraftCreateRequest request) {
 		Long addressId = request.getAddressId();
 		String memo = request.getMemo();
@@ -41,23 +44,20 @@ public class OrderService {
 		Long userId = request.getUserId();
 		Long couponId = request.getCouponId();
 
-		Address address = addressRepository.findById(addressId)
-			.orElseThrow(() -> new IllegalArgumentException("Invalid address ID"));
+		Address address = addressPort.loadAddress(addressId);
 		ShippingInfo shippingInfo = new ShippingInfo(address);
 
-
-		User user = userRepository.findById(userId)
-			.orElseThrow(() -> new IllegalArgumentException("Invalid user ID"));
+		User user = userPort.loadUser(userId);
 
 		// cart 조회할 때 product도 한번에 fetch 조인으로 가져오자
-		List<CartItem> cartItems = cartItemRepository.findByCartIdWithProduct(cartId);
+		List<CartItem> cartItems = cartItemPort.findByCartIdWithProduct(cartId);
 
 		// productId를 뽑기
 		List<Long> productsIds = cartItems.stream()
 			.map(cartItem -> cartItem.getProduct().getId())
 			.collect(Collectors.toList());
 
-		List<Inventory> inventories = inventoryRepository.findByProductIdIn(productsIds);
+		List<Inventory> inventories = inventoryPort.findByProductIdIn(productsIds);
 		// <productId, Inventory> 맵 생성
 		Map<Long, Inventory> inventoryMap = inventories.stream()
 			.collect(Collectors.toMap(inv -> inv.getProduct().getId(), inv -> inv));
@@ -84,7 +84,7 @@ public class OrderService {
 		).collect(Collectors.toList());
 
 		Order order = Order.createOrder(user, shippingInfo, orderProducts, couponId, 0L, memo);
-		orderRepository.save(order);
+		orderPort.save(order);
 
 		return OrderDraftCreateResponse.from(order);
 
