@@ -67,8 +67,6 @@ class PaymentServiceTest {
 
 		// then
 		// order 상태 확인
-		ArgumentCaptor<Payment> paymentCaptor = ArgumentCaptor.forClass(Payment.class);
-
 		assertEquals(OrderStatus.PAID, order.getStatus());
 		assertEquals("tx123", payResponse.getTransactionId());
 		assertEquals("PAID", payResponse.getStatus());

@@ -15,8 +15,4 @@ public class User {
 	@Id
 	private Long id;
 
-	@OneToOne(mappedBy = "user")
-	// 변경이 잦기 때문에
-	private Point point;
-
 }
