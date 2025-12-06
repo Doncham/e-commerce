@@ -12,19 +12,21 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import kr.hhplus.be.server.address.Address;
-import kr.hhplus.be.server.address.port.out.AddressPort;
-import kr.hhplus.be.server.cartItem.CartItem;
-import kr.hhplus.be.server.cartItem.port.out.CartItemPort;
-import kr.hhplus.be.server.inventory.Inventory;
-import kr.hhplus.be.server.inventory.exception.InSufficientStockException;
-import kr.hhplus.be.server.inventory.port.out.InventoryPort;
-import kr.hhplus.be.server.order.request.OrderDraftCreateRequest;
-import kr.hhplus.be.server.order.response.OrderDraftCreateResponse;
-import kr.hhplus.be.server.order.port.out.OrderPort;
-import kr.hhplus.be.server.product.Product;
-import kr.hhplus.be.server.user.User;
-import kr.hhplus.be.server.user.port.out.UserPort;
+import kr.hhplus.be.server.domain.address.Address;
+import kr.hhplus.be.server.application.address.AddressPort;
+import kr.hhplus.be.server.application.order.OrderService;
+import kr.hhplus.be.server.domain.cartItem.CartItem;
+import kr.hhplus.be.server.application.cartItem.CartItemPort;
+import kr.hhplus.be.server.domain.order.Order;
+import kr.hhplus.be.server.domain.inventory.Inventory;
+import kr.hhplus.be.server.domain.inventory.exception.InSufficientStockException;
+import kr.hhplus.be.server.application.inventory.InventoryPort;
+import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
+import kr.hhplus.be.server.api.order.response.OrderDraftCreateResponse;
+import kr.hhplus.be.server.application.order.OrderPort;
+import kr.hhplus.be.server.domain.product.Product;
+import kr.hhplus.be.server.domain.user.User;
+import kr.hhplus.be.server.domain.user.UserPort;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {

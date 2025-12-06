@@ -13,11 +13,14 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import kr.hhplus.be.server.point.exception.PointAmountNotValidException;
-import kr.hhplus.be.server.pointhistory.ChangeType;
-import kr.hhplus.be.server.pointhistory.PointHistory;
-import kr.hhplus.be.server.pointhistory.PointHistoryRepository;
-import kr.hhplus.be.server.pointhistory.SourceType;
+import kr.hhplus.be.server.application.point.PointService;
+import kr.hhplus.be.server.domain.point.Point;
+import kr.hhplus.be.server.domain.point.PointRepository;
+import kr.hhplus.be.server.domain.point.exception.PointAmountNotValidException;
+import kr.hhplus.be.server.domain.pointhistory.ChangeType;
+import kr.hhplus.be.server.domain.pointhistory.PointHistory;
+import kr.hhplus.be.server.domain.pointhistory.PointHistoryRepository;
+import kr.hhplus.be.server.domain.pointhistory.SourceType;
 
 @ExtendWith(MockitoExtension.class)
 class PointServiceTest {

@@ -11,11 +11,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import kr.hhplus.be.server.inventory.Inventory;
-import kr.hhplus.be.server.inventory.InventoryRepository;
-import kr.hhplus.be.server.inventory.InventoryStatus;
-import kr.hhplus.be.server.inventory.exception.NotFoundInventoryException;
-import kr.hhplus.be.server.product.response.ProductDetailResponse;
+import kr.hhplus.be.server.application.product.ProductService;
+import kr.hhplus.be.server.domain.inventory.Inventory;
+import kr.hhplus.be.server.domain.inventory.InventoryRepository;
+import kr.hhplus.be.server.domain.product.Product;
+import kr.hhplus.be.server.domain.inventory.InventoryStatus;
+import kr.hhplus.be.server.domain.inventory.exception.NotFoundInventoryException;
+import kr.hhplus.be.server.api.product.ProductDetailResponse;
 
 @ExtendWith(MockitoExtension.class)
 class ProductServiceTest {

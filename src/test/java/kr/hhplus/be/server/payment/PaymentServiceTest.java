@@ -7,27 +7,27 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import kr.hhplus.be.server.order.Order;
-import kr.hhplus.be.server.order.OrderStatus;
-import kr.hhplus.be.server.order.ShippingInfo;
-import kr.hhplus.be.server.orderproduct.OrderProduct;
-import kr.hhplus.be.server.payment.domain.Payment;
-import kr.hhplus.be.server.payment.domain.PaymentGatewayStatus;
-import kr.hhplus.be.server.payment.domain.PaymentStatus;
-import kr.hhplus.be.server.payment.exception.PayAmountMisMatchException;
-import kr.hhplus.be.server.order.port.out.OrderPort;
-import kr.hhplus.be.server.payment.port.out.PaymentGatewayPort;
-import kr.hhplus.be.server.payment.port.out.PaymentPort;
-import kr.hhplus.be.server.payment.request.PayResponse;
-import kr.hhplus.be.server.payment.request.PaymentGatewayRequest;
-import kr.hhplus.be.server.payment.response.PaymentGatewayResponse;
-import kr.hhplus.be.server.user.User;
+import kr.hhplus.be.server.application.payment.PaymentService;
+import kr.hhplus.be.server.domain.order.Order;
+import kr.hhplus.be.server.domain.order.OrderStatus;
+import kr.hhplus.be.server.domain.order.ShippingInfo;
+import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
+import kr.hhplus.be.server.domain.payment.Payment;
+import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
+import kr.hhplus.be.server.domain.payment.PaymentStatus;
+import kr.hhplus.be.server.domain.payment.exception.PayAmountMisMatchException;
+import kr.hhplus.be.server.application.order.OrderPort;
+import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
+import kr.hhplus.be.server.domain.payment.PaymentPort;
+import kr.hhplus.be.server.api.payment.request.PayResponse;
+import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
+import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
+import kr.hhplus.be.server.domain.user.User;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
