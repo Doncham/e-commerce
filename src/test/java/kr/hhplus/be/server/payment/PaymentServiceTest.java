@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import kr.hhplus.be.server.api.payment.request.PayRequest;
 import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.OrderStatus;
@@ -48,6 +49,12 @@ class PaymentServiceTest {
 	void givenValidOrderId_whenPay_thenChangeOrderStatusAndSavePayment() {
 		// given
 		Long orderId = 1L;
+		String idempotencyKey = "unique-key-123";
+		PayRequest request = PayRequest.builder()
+			.idempotencyKey(idempotencyKey)
+			.orderId(orderId)
+			.build();
+
 		OrderProduct orderProduct1 = OrderProduct.create(1L, "Product A", 1000L, 2);
 		OrderProduct orderProduct2 = OrderProduct.create(2L, "Product B", 500L, 1);
 		// order 만들기
@@ -58,12 +65,13 @@ class PaymentServiceTest {
 		);
 
 
+
 		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of("tx123", PaymentGatewayStatus.SUCCESS, 2500L);
 		when(pgClient.requestPayment(any(PaymentGatewayRequest.class)))
 			.thenReturn(pgResponse);
 
 		// when
-		PayResponse payResponse = paymentService.pay(orderId);
+		PayResponse payResponse = paymentService.pay(request);
 
 		// then
 		// order 상태 확인
@@ -80,6 +88,12 @@ class PaymentServiceTest {
 	void givenGatewayFailure_whenPay_thenOrderFailedAndPaymentSavedAsFailed() {
 		// given
 		Long orderId = 1L;
+		String idempotencyKey = "unique-key-123";
+		PayRequest request = PayRequest.builder()
+			.idempotencyKey(idempotencyKey)
+			.orderId(orderId)
+			.build();
+
 		OrderProduct orderProduct1 = OrderProduct.create(1L, "Product A", 1000L, 2);
 		OrderProduct orderProduct2 = OrderProduct.create(2L, "Product B", 500L, 1);
 		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
@@ -93,7 +107,7 @@ class PaymentServiceTest {
 
 
 		// when
-		PayResponse response = paymentService.pay(orderId);
+		PayResponse response = paymentService.pay(request);
 
 		// then
 		assertEquals(OrderStatus.FAILED, order.getStatus());
@@ -109,6 +123,11 @@ class PaymentServiceTest {
 	void givenAlreadyPaidOrder_whenPay_thenSkipPaymentAndPgNotCalled() {
 		// given
 		Long orderId = 1L;
+		String idempotencyKey = "unique-key-123";
+		PayRequest request = PayRequest.builder()
+			.idempotencyKey(idempotencyKey)
+			.orderId(orderId)
+			.build();
 		Order order = mock(Order.class);
 		Payment payment = mock(Payment.class);
 
@@ -126,7 +145,7 @@ class PaymentServiceTest {
 
 		// when
 		//assertThrows(PaidOrderHavePaymentException.class, () -> paymentService.pay(orderId));
-		PayResponse response = paymentService.pay(orderId);
+		PayResponse response = paymentService.pay(request);
 
 		// then
 		assertEquals(orderId, response.getOrderId());
@@ -142,6 +161,12 @@ class PaymentServiceTest {
 	void givenAmountMismatchFromPg_whenPay_thenThrowException() {
 		// given
 		Long orderId = 1L;
+		String idempotencyKey = "unique-key-123";
+		PayRequest request = PayRequest.builder()
+			.idempotencyKey(idempotencyKey)
+			.orderId(orderId)
+			.build();
+
 		OrderProduct orderProduct1 = OrderProduct.create(1L, "Product A", 1000L, 2);
 		OrderProduct orderProduct2 = OrderProduct.create(2L, "Product B", 500L, 1);
 		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
@@ -154,7 +179,7 @@ class PaymentServiceTest {
 		when(pgClient.requestPayment(any())).thenReturn(pgResponse);
 
 		// when & then
-		assertThrows(PayAmountMisMatchException.class, () -> paymentService.pay(orderId));
+		assertThrows(PayAmountMisMatchException.class, () -> paymentService.pay(request));
 	}
 
 

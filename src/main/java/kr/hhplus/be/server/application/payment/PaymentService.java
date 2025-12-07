@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.hhplus.be.server.api.payment.request.PayRequest;
 import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.payment.Payment;
@@ -30,7 +31,10 @@ public class PaymentService implements PayUseCase {
 
 	@Override
 	@Transactional
-	public PayResponse pay(Long orderId) {
+	public PayResponse pay(PayRequest request) {
+		Long orderId = request.getOrderId();
+		String idempotencyKey = request.getIdempotencyKey();
+
 		Order order = orderPort.loadOrderForUpdate(orderId);
 		// 멱등성 보장: 이미 결제된 주문이면 바로 반환 or 예외
 		if(order.isPaid()) {
@@ -39,7 +43,7 @@ public class PaymentService implements PayUseCase {
 			return PayResponse.of(order, payment.getPgTransactionId());
 		}
 
-		PaymentGatewayRequest pgReq = PaymentGatewayRequest.of(order);
+		PaymentGatewayRequest pgReq = PaymentGatewayRequest.forOrderPayment(order, idempotencyKey);
 		// 나중에는 재시도 로직 추가 + 예외 처리 시 실패한 Payment를 생성해야겠다.
 		PaymentGatewayResponse resp = pgPort.requestPayment(pgReq);
 
