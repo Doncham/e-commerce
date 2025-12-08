@@ -165,6 +165,7 @@ class PointServiceTest {
 		Long pointChargeId = 10L;
 		Point point = Point.createPoint(userId);
 		point.increaseBalance(3000L); // 기존 포인트
+		point.increaseBalance(chargeAmount); // 동시성으로 인해 이미 충전된 상태 가정
 		PointCharge existingPointCharge = createPointCharge(userId, chargeAmount, idempotencyKey, pointChargeId);
 
 		PointChargeRequest request = PointChargeRequest.builder()

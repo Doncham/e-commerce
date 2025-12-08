@@ -1,6 +1,7 @@
 package kr.hhplus.be.server.application.point;
 
 import java.math.BigDecimal;
+import java.util.Optional;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -70,8 +71,12 @@ public class PointService {
 		);
 		try {
 			// 충전 기록용 엔티티 생성
-			PointCharge pointCharge = pointChargeRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
-				 .orElseGet(() -> pointChargeRepository.save(PointCharge.of(userId, amount, idempotencyKey)));
+			Optional<PointCharge> existingOpt = pointChargeRepository.findByUserIdAndIdempotencyKey(
+				userId, idempotencyKey);
+			if(existingOpt.isPresent()){
+				return buildIdempotentResponse(userId, idempotencyKey);
+			}
+			PointCharge pointCharge = pointChargeRepository.save(PointCharge.of(userId, amount, idempotencyKey));
 			// PG 요청
 			PaymentGatewayRequest pgRequest = PaymentGatewayRequest.forPointCharge(pointCharge.getId(), amount, idempotencyKey);
 			PaymentGatewayResponse pgResponse = pgPort.requestPayment(pgRequest);
@@ -93,19 +98,23 @@ public class PointService {
 
 		} catch (DataIntegrityViolationException e) {
 			// 3) 유니크 제약 위반 = 이미 누가 같은 idempotencyKey로 요청 처리함
-			PointCharge existing = pointChargeRepository
-				.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
-				.orElseThrow(() -> new RuntimeException("PointCharge not found after unique constraint violation", e));
-
-			return new PointChargeResponse(
-				existing.getUserId(),
-				existing.getAmount(),
-				existing.getAmount() + pointRepository.findByUserIdForUpdate(userId)
-					.map(Point::getBalance)
-					.orElse(0L)
-			);
+			return buildIdempotentResponse(userId, idempotencyKey);
 		}
 
+	}
+	private PointChargeResponse buildIdempotentResponse(Long userId, String idempotencyKey) {
+		PointCharge existing = pointChargeRepository
+			.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+			.orElseThrow(() -> new RuntimeException("PointCharge not found for idempotent response"));
 
+		Long currentBalance = pointRepository.findByUserIdForUpdate(userId)
+			.map(Point::getBalance)
+			.orElse(0L);
+
+		return new PointChargeResponse(
+			existing.getUserId(),
+			existing.getAmount(),
+			currentBalance
+		);
 	}
 }
