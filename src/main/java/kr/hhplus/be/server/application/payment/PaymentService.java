@@ -5,7 +5,12 @@ import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import kr.hhplus.be.server.api.payment.request.PayRequest;
+import kr.hhplus.be.server.domain.outbox.OutboxEvent;
+import kr.hhplus.be.server.domain.outbox.PaymentCompletedPayload;
 import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.payment.Payment;
@@ -18,6 +23,7 @@ import kr.hhplus.be.server.domain.payment.PaymentPort;
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
+import kr.hhplus.be.server.infrastructure.persistence.outbox.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -28,6 +34,8 @@ public class PaymentService implements PayUseCase {
 	private final PaymentGatewayPort pgPort;
 	private final PaymentPort paymentPort;
 	private final OrderPort orderPort;
+	private final OutboxEventRepository outboxEventRepository;
+	private final ObjectMapper objectMapper;
 
 	@Override
 	@Transactional
@@ -49,6 +57,7 @@ public class PaymentService implements PayUseCase {
 
 		if(resp.getStatus() == PaymentGatewayStatus.SUCCESS) {
 			if(!resp.getPaidAmount().equals(order.getPayAmount())) {
+				// 돈 빠져나갔으니까 pg에 결제 취소 + 재결제해야겠네
 				throw new PayAmountMisMatchException(ErrorCode.PAY_AMOUNT_MISMATCH, order.toString());
 			}
 			// order 상태 변경
@@ -65,6 +74,26 @@ public class PaymentService implements PayUseCase {
 		}
 
 		paymentPort.save(payment);
+		PaymentCompletedPayload payload = PaymentCompletedPayload.of(
+			order.getUser().getId(),
+			orderId,
+			order.getPayAmount(),
+			resp.getPgTransactionId()
+		);
+
+		String payloadJson;
+		try {
+			payloadJson = objectMapper.writeValueAsString(payload);
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException("Failed to serialize outbox payload", e);
+		}
+		OutboxEvent outboxEvent = OutboxEvent.of(
+			"ORDER",
+			order.getId(),
+			"PAYMENT_COMPLETED",
+			payloadJson
+		);
+		outboxEventRepository.save(outboxEvent);
 
 		// 이후 성공/실패 응답 생성
 		if(resp.getStatus() == PaymentGatewayStatus.SUCCESS) {

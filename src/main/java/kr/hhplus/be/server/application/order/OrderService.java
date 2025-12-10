@@ -64,6 +64,7 @@ public class OrderService implements OrderUseCase {
 
 		// 재고 검증 + reserved 증가
 		for(CartItem ci : cartItems) {
+			// cartItem.getProduct().getId()로 inventory 조회 -> 수량 확인 -> 재고 부족 시 예외 처리
 			Inventory inv = inventoryMap.get(ci.getProduct().getId());
 			if(inv == null){
 				throw new NotFoundInventoryException(ci.getProduct().getId().toString());
@@ -75,7 +76,6 @@ public class OrderService implements OrderUseCase {
 		}
 		// cartItem -> orderProduct 변환
 		List<OrderProduct> orderProducts = cartItems.stream().map(ci ->
-			// cartItem.getProduct().getId()로 inventory 조회 -> 수량 확인 -> 재고 부족 시 예외 처리
 			OrderProduct.create(ci.getProduct().getId(),
 				ci.getProduct().getName(),
 				ci.getProduct().getPrice(),
