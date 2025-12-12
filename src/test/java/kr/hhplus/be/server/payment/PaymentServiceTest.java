@@ -11,24 +11,28 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.testcontainers.shaded.com.fasterxml.jackson.core.JsonProcessingException;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.hhplus.be.server.api.payment.request.PayRequest;
+import kr.hhplus.be.server.api.payment.request.PayResponse;
+import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
+import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
+import kr.hhplus.be.server.application.order.OrderPort;
 import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.order.ShippingInfo;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.payment.Payment;
+import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
+import kr.hhplus.be.server.domain.payment.PaymentPort;
 import kr.hhplus.be.server.domain.payment.PaymentStatus;
 import kr.hhplus.be.server.domain.payment.exception.PayAmountMisMatchException;
-import kr.hhplus.be.server.application.order.OrderPort;
-import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
-import kr.hhplus.be.server.domain.payment.PaymentPort;
-import kr.hhplus.be.server.api.payment.request.PayResponse;
-import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
-import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.domain.user.User;
+import kr.hhplus.be.server.infrastructure.persistence.outbox.OutboxEventRepository;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
@@ -40,10 +44,14 @@ class PaymentServiceTest {
 	private PaymentPort paymentPort;
 	@Mock
 	private OrderPort orderPort;
+
 	@Mock
-	User user;
+	private ShippingInfo shippingInfo;
 	@Mock
-	ShippingInfo shippingInfo;
+	private ObjectMapper objectMapper;
+	@Mock
+	private OutboxEventRepository outboxEventRepository;
+
 	// 결제 성공
 	@Test
 	void givenValidOrderId_whenPay_thenChangeOrderStatusAndSavePayment() {
@@ -54,6 +62,7 @@ class PaymentServiceTest {
 			.idempotencyKey(idempotencyKey)
 			.orderId(orderId)
 			.build();
+		User user = mock(User.class);
 
 		OrderProduct orderProduct1 = OrderProduct.create(1L, "Product A", 1000L, 2);
 		OrderProduct orderProduct2 = OrderProduct.create(2L, "Product B", 500L, 1);
@@ -63,8 +72,6 @@ class PaymentServiceTest {
 		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(
 			order
 		);
-
-
 
 		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of("tx123", PaymentGatewayStatus.SUCCESS, 2500L);
 		when(pgClient.requestPayment(any(PaymentGatewayRequest.class)))
@@ -85,14 +92,19 @@ class PaymentServiceTest {
 
 	// 멱등성 테스트: PG 실패 시 응답 체크
 	@Test
-	void givenGatewayFailure_whenPay_thenOrderFailedAndPaymentSavedAsFailed() {
+	void givenGatewayFailure_whenPay_thenOrderFailedAndPaymentSavedAsFailed() throws
+		JsonProcessingException,
+		com.fasterxml.jackson.core.JsonProcessingException {
 		// given
 		Long orderId = 1L;
+		Long userId = 3L;
 		String idempotencyKey = "unique-key-123";
+		String txId = "tx123";
 		PayRequest request = PayRequest.builder()
 			.idempotencyKey(idempotencyKey)
 			.orderId(orderId)
 			.build();
+		User user = mock(User.class);
 
 		OrderProduct orderProduct1 = OrderProduct.create(1L, "Product A", 1000L, 2);
 		OrderProduct orderProduct2 = OrderProduct.create(2L, "Product B", 500L, 1);
@@ -100,11 +112,11 @@ class PaymentServiceTest {
 		ReflectionTestUtils.setField(order, "id", orderId);
 
 		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(user.getId()).thenReturn(userId);
 
 		PaymentGatewayResponse pgResponse =
-			PaymentGatewayResponse.of("tx123", PaymentGatewayStatus.FAILURE, 2500L);
+			PaymentGatewayResponse.of(txId, PaymentGatewayStatus.FAILURE, 2500L);
 		when(pgClient.requestPayment(any())).thenReturn(pgResponse);
-
 
 		// when
 		PayResponse response = paymentService.pay(request);
@@ -115,6 +127,7 @@ class PaymentServiceTest {
 		assertEquals("FAILED", response.getStatus());
 		assertEquals(2500L, response.getAmount());
 		assertEquals(orderId, response.getOrderId());
+		verify(outboxEventRepository).save(any());
 
 	}
 
@@ -166,6 +179,7 @@ class PaymentServiceTest {
 			.idempotencyKey(idempotencyKey)
 			.orderId(orderId)
 			.build();
+		User user = mock(User.class);
 
 		OrderProduct orderProduct1 = OrderProduct.create(1L, "Product A", 1000L, 2);
 		OrderProduct orderProduct2 = OrderProduct.create(2L, "Product B", 500L, 1);
