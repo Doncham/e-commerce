@@ -20,17 +20,21 @@ public class Point {
 	private Long userId;
 
 	private Long balance;
+	private Long reserved;
 
-	private Point(Long userId, Long balance) {
+	private Point(Long userId, Long balance, Long reserved) {
 		this.userId = userId;
 		this.balance = balance;
+		this.reserved = reserved;
 	}
 	public static Point createPoint(Long userId) {
-		return new Point(userId, 0L);
+		return new Point(userId, 0L, 0L);
 	}
 
 	public Long increaseBalance(Long earnedPoint) {
 		this.balance += earnedPoint;
 		return this.balance;
 	}
+	public long availablePoint(){ return Math.max(balance - reserved, 0);}
+	public void reservePoint(Long qty) { this.reserved += qty; }
 }

@@ -14,4 +14,9 @@ public enum ErrorCode {
 	EXPIRED_COUPON, // 쿠폰 만료
 	COUPON_FOR_USER_LIMIT_EXCEED, // 특정 유저의 쿠폰 발급 한도 초과
 	COUPON_ISSUE_LIMIT_EXCEED, // 쿠폰 발급 한도 초과
+	NOT_FOUND_POINT, // 포인트 없음
+	NEGATIVE_POINT_USE, // 음수 포인트 사용
+	NOT_FOUND_POINT_CHARGE, // 포인트충전 없음
+
+
 }
