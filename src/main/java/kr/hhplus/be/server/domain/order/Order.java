@@ -17,6 +17,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import kr.hhplus.be.server.entity.BaseTimeEntity;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.user.User;
@@ -27,6 +29,12 @@ import lombok.NoArgsConstructor;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Table(
+	uniqueConstraints = @UniqueConstraint(
+		name = "ux_userid_and_idempotencyKey",
+		columnNames = {"user_id", "idempotency_key"}
+	)
+)
 public class Order extends BaseTimeEntity {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -53,9 +61,73 @@ public class Order extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Long payAmount;
 	private String memo;
+	// 이것도 차감해줘야지
+	@Column(nullable = false)
+	private Long pointUsed;
+	@Column(name="idempotency_key", nullable = false)
+	private String idempotencyKey;
 
 	@OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<OrderProduct> orderProducts = new ArrayList<>();
+
+	public static Order createDraft(User user, ShippingInfo shippingInfo, String idempotencyKey) {
+		return new Order(user, shippingInfo, idempotencyKey);
+	}
+	private Order(User user, ShippingInfo shippingInfo, String idempotencyKey) {
+		this.user = Objects.requireNonNull(user);
+		this.shippingAddress = Objects.requireNonNull(shippingInfo);
+		this.idempotencyKey = Objects.requireNonNull(idempotencyKey);
+		this.status = OrderStatus.DRAFT;
+		this.itemTotal = 0L;
+		this.couponDiscount = 0L;
+		this.payAmount = 0L;
+		this.pointUsed = 0L;
+	}
+
+
+	public void completeOrderDraft(
+		List<OrderProduct> items,
+		Long couponId,
+		Long couponDiscount,
+		String memo,
+		Long point
+	)
+	{
+		ensureDraftState();
+		// null, empty 체크
+		validateItems(items);
+		items.forEach(this::addOrderProduct);
+
+		// item 총 가격 계산
+		long itemTotal = calculateItemTotal();
+		this.itemTotal = itemTotal;
+
+		this.couponId = couponId;
+		this.couponDiscount = couponDiscount == null ? 0L : couponDiscount;
+		this.pointUsed = point == null ? 0L : point;
+		long discounted = Math.max(0L, this.itemTotal - this.couponDiscount - this.pointUsed);
+		this.payAmount = discounted;
+
+		this.memo = memo;
+
+		this.status = OrderStatus.CREATED;
+	}
+	private void ensureDraftState() {
+		if(this.status != OrderStatus.DRAFT){
+			throw new IllegalStateException("Only draft order can be completed");
+		}
+	}
+
+	private void validateItems(List<OrderProduct> items) {
+		Objects.requireNonNull(items, "order items required");
+		if(items.isEmpty()) throw new IllegalArgumentException("order must have at least one item");
+	}
+
+	private long calculateItemTotal() {
+		return this.orderProducts.stream()
+			.mapToLong(OrderProduct::getItemTotalPrice)
+			.sum();
+	}
 
 	// 양방향 연관관계 메서드
 	public void addOrderProduct(OrderProduct orderProduct) {
@@ -63,34 +135,6 @@ public class Order extends BaseTimeEntity {
 		orderProduct.initOrder(this);
 	}
 
-	private Order(User user, ShippingInfo shippingAddress, List<OrderProduct> items,
-		Long couponId, Long couponDiscount, String memo) {
-		this.user = Objects.requireNonNull(user);
-		this.status = OrderStatus.CREATED;
-		this.shippingAddress = Objects.requireNonNull(shippingAddress);
-		Objects.requireNonNull(items,"order items required");
-		if(items.isEmpty()){
-			throw new IllegalArgumentException("order must have at least one item");
-		}
-		items.forEach(this::addOrderProduct);
-
-		long itemTotal = orderProducts.stream()
-			.mapToLong(OrderProduct::getItemTotalPrice)
-			.sum();
-		this.itemTotal = itemTotal;
-
-		this.couponDiscount = couponDiscount == null ? 0L : couponDiscount;
-		// 음수 방지
-		this.payAmount = Math.max(0L, itemTotal - couponDiscount);
-		this.couponId = couponId;
-		this.memo = memo;
-	}
-
-	public static Order createOrder(User user, ShippingInfo shippingInfo, List<OrderProduct> items,
-		Long couponId, Long couponDiscount, String memo) {
-		return new Order(user, shippingInfo, items,
-			couponId, couponDiscount, memo);
-	}
 	public void paid() {
 		this.status = OrderStatus.PAID;
 	}

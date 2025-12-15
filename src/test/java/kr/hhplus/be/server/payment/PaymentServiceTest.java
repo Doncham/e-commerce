@@ -67,7 +67,8 @@ class PaymentServiceTest {
 		OrderProduct orderProduct1 = OrderProduct.create(1L, "Product A", 1000L, 2);
 		OrderProduct orderProduct2 = OrderProduct.create(2L, "Product B", 500L, 1);
 		// order 만들기
-		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
+		Order order = Order.createDraft(user, shippingInfo, idempotencyKey);
+		order.completeOrderDraft(List.of(orderProduct1, orderProduct2), 1L, 0L, "memo",0L);
 		ReflectionTestUtils.setField(order, "id", orderId);
 		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(
 			order
@@ -108,7 +109,8 @@ class PaymentServiceTest {
 
 		OrderProduct orderProduct1 = OrderProduct.create(1L, "Product A", 1000L, 2);
 		OrderProduct orderProduct2 = OrderProduct.create(2L, "Product B", 500L, 1);
-		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
+		Order order = Order.createDraft(user, shippingInfo, idempotencyKey);
+		order.completeOrderDraft(List.of(orderProduct1, orderProduct2), 1L, 0L, "memo", 0L);
 		ReflectionTestUtils.setField(order, "id", orderId);
 
 		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
@@ -183,7 +185,8 @@ class PaymentServiceTest {
 
 		OrderProduct orderProduct1 = OrderProduct.create(1L, "Product A", 1000L, 2);
 		OrderProduct orderProduct2 = OrderProduct.create(2L, "Product B", 500L, 1);
-		Order order = Order.createOrder(user, shippingInfo, List.of(orderProduct1, orderProduct2), 1L, 0L, "memo");
+		Order order = Order.createDraft(user, shippingInfo, idempotencyKey);
+		order.completeOrderDraft(List.of(orderProduct1, orderProduct2), 1L, 0L, "memo", 0L);
 		ReflectionTestUtils.setField(order, "id", orderId);
 
 		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);

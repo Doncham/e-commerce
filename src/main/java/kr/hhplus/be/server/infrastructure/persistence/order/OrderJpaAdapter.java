@@ -1,5 +1,7 @@
 package kr.hhplus.be.server.infrastructure.persistence.order;
 
+import java.util.Optional;
+
 import org.springframework.stereotype.Repository;
 
 import kr.hhplus.be.server.exception.ErrorCode;
@@ -23,6 +25,16 @@ public class OrderJpaAdapter implements OrderPort {
 	@Override
 	public Order save(Order order) {
 		return orderRepository.save(order);
+	}
+
+	@Override
+	public Optional<Order> findByUserIdAndIdempotencyKey(Long userId, String idempotencyKey) {
+		return orderRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey);
+	}
+
+	@Override
+	public Order saveAndFlush(Order draft) {
+		return orderRepository.saveAndFlush(draft);
 	}
 
 }

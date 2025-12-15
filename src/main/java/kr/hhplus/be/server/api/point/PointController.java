@@ -6,13 +6,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import kr.hhplus.be.server.api.point.request.PointChargeRequest;
 import kr.hhplus.be.server.api.point.response.PointChargeResponse;
-import kr.hhplus.be.server.application.point.PointService;
+import kr.hhplus.be.server.application.point.PointCommandService;
 import lombok.RequiredArgsConstructor;
 
 @RestController("/api")
 @RequiredArgsConstructor
 public class PointController {
-	private final PointService pointService;
+	private final PointCommandService pointService;
 	@PostMapping("/points/charge")
 	public ResponseEntity<PointChargeResponse> chargePoint(PointChargeRequest request) {
 		PointChargeResponse response = pointService.charge(request);
