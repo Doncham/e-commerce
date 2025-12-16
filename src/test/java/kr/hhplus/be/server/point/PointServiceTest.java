@@ -12,19 +12,19 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.api.point.request.PointChargeRequest;
 import kr.hhplus.be.server.api.point.response.PointChargeResponse;
-import kr.hhplus.be.server.application.point.PointService;
+import kr.hhplus.be.server.application.point.PointCommandService;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
 import kr.hhplus.be.server.domain.point.Point;
 import kr.hhplus.be.server.domain.point.PointRepository;
 import kr.hhplus.be.server.domain.point.exception.PointAmountNotValidException;
+import kr.hhplus.be.server.domain.pointcharge.ChargeStatus;
 import kr.hhplus.be.server.domain.pointcharge.PointCharge;
 import kr.hhplus.be.server.domain.pointhistory.ChangeType;
 import kr.hhplus.be.server.domain.pointhistory.PointHistory;
@@ -35,7 +35,7 @@ import kr.hhplus.be.server.infrastructure.persistence.pointcharge.PointChargeRep
 @ExtendWith(MockitoExtension.class)
 class PointServiceTest {
 	@InjectMocks
-	private PointService pointService;
+	private PointCommandService pointCommandService;
 	@Mock
 	private PointRepository pointRepository;
 	@Mock
@@ -61,7 +61,7 @@ class PointServiceTest {
 		when(pointRepository.findByUserIdForUpdate(userId)).thenReturn(Optional.of(point));
 
 		// when
-		pointService.earnForOrder(userId, orderId, orderAmount);
+		pointCommandService.earnForOrder(userId, orderId, orderAmount);
 		ArgumentCaptor<PointHistory> pointHistoryCaptor = ArgumentCaptor.forClass(PointHistory.class);
 
 		// then
@@ -73,28 +73,28 @@ class PointServiceTest {
 	}
 	// 포인트 충전 실패 테스트 - 음수 충전
 	@Test
-	void givenNegativePointAmount_whenChargePoint_thenThrowException() {
+	void givenNegativePayAmount_whenEarnForOrder_thenThrowException() {
 		// given
 		long userId = 1L;
 		long orderAmount = -5000L; // 음수 금액
 		long orderId = 2L;
 
 		// when & then
-		Assertions.assertThrows(PointAmountNotValidException.class, () -> {
-			pointService.earnForOrder(userId, orderId, orderAmount);
+		assertThrows(PointAmountNotValidException.class, () -> {
+			pointCommandService.earnForOrder(userId, orderId, orderAmount);
 		});
 		verify(pgPort, never()).requestPayment(any(PaymentGatewayRequest.class));
 	}
 
 	// 포인트 충전 테스트(유저가 직접하는거 not order)
 	@Test
-	void givenValidaPoint_whenChargePoint_thenUserPointIncreased() {
+	void givenValidaPointChargeRequestAndPgResp_whenChargePoint_thenUserPointIncreased() {
 		// given
 		long userId = 1L;
 		long chargeAmount = 5000L;
+		Long pointChargeId = 2L;
 		String idempotencyKey = "unique-key-123";
 		String pgTransactionId = "pg-tx-456";
-		Long pointId = 15L;
 		Point point = Point.createPoint(userId);
 		point.increaseBalance(3000L); // 기존 포인트
 		PointChargeRequest request = PointChargeRequest.builder()
@@ -103,29 +103,27 @@ class PointServiceTest {
 			.idempotencyKey(idempotencyKey)
 			.build();
 
-		PointCharge pointCharge = createPointCharge(userId, chargeAmount, idempotencyKey, pointId);
+		PointCharge pointCharge = PointCharge.of(userId, chargeAmount, idempotencyKey);
 
 		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of(pgTransactionId,
 			PaymentGatewayStatus.SUCCESS, chargeAmount);
 
+		when(pointChargeRepository.findById(pointChargeId)).thenReturn(Optional.of(pointCharge));
 		when(pointRepository.findByUserIdForUpdate(userId))
 			.thenReturn(Optional.of(point));
-		when(pointChargeRepository.findByUserIdAndIdempotencyKey(userId,idempotencyKey))
-			.thenReturn(Optional.empty());
-		when(pointChargeRepository.save(any()))
-			.thenReturn(pointCharge);
-		when(pgPort.requestPayment(any()))
-			.thenReturn(pgResponse);
+		when(pointChargeRepository.findById(pointChargeId))
+			.thenReturn(Optional.of(pointCharge));
+
 
 		// when
-		PointChargeResponse response = pointService.charge(request);
+		PointChargeResponse response = pointCommandService.charge(pointChargeId, request, pgResponse);
 
 		// then
 		ArgumentCaptor<PointHistory> captor = ArgumentCaptor.forClass(PointHistory.class);
 		verify(pointHistoryRepository).save(captor.capture());
 		PointHistory saved = captor.getValue();
 		assertEquals(userId, saved.getUserId());
-		assertEquals(ChangeType.EARN, saved.getChangeType());
+		assertEquals(ChangeType.CHARGE, saved.getChangeType());
 		assertEquals(chargeAmount, saved.getAmount());
 		assertEquals(8000L, saved.getBalanceAfterChange());
 		assertEquals(SourceType.CHARGE, saved.getSourceType());
@@ -135,36 +133,55 @@ class PointServiceTest {
 		assertEquals(8000L, response.getBalanceAfterChange()); // 3000 + 5000
 		verify(pointHistoryRepository).save(any(PointHistory.class));
 
-		verify(pgPort).requestPayment(any(PaymentGatewayRequest.class));
-		verify(pointChargeRepository).save(any(PointCharge.class));
-	}
-	// 음수 충전 시 예외 발생 테스트
-	@Test
-	void givenNegativeChargeAmount_whenChargePoint_thenThrowException() {
-		// given
-		long userId = 1L;
-		long chargeAmount = -2000L; // 음수 금액
-		PointChargeRequest request = PointChargeRequest.builder()
-			.amount(chargeAmount)
-			.userId(userId)
-			.build();
-
-		// when & then
-		Assertions.assertThrows(PointAmountNotValidException.class, () -> {
-			pointService.charge(request);
-		});
 	}
 
 	// pointCharge가 이미 존재할 때 멱등성이 잘 지켜지는지 테스트
 	@Test
-	void givenConcurrentPointChargeInsert_whenChargePoint_thenThrowUniqueViolation() {
+	void givenAlreadySucceededPointChargeInsert_whenChargePoint_thenReturnSuccessResponse() {
 		// given
 		long userId = 1L;
 		long chargeAmount = 5000L;
 		String idempotencyKey = "unique-key-123";
 		Long pointChargeId = 10L;
+		String pgTransactionId = "pg-tx-213";
+		Long basePoint = 3000L;
 		Point point = Point.createPoint(userId);
-		point.increaseBalance(3000L); // 기존 포인트
+		point.increaseBalance(basePoint); // 기존 포인트
+		point.increaseBalance(chargeAmount); // 동시성으로 인해 이미 충전된 상태 가정
+		PointCharge existingPointCharge = createPointCharge(userId, chargeAmount, idempotencyKey, pointChargeId);
+		existingPointCharge.success(basePoint + chargeAmount);
+
+		PointChargeRequest request = PointChargeRequest.builder()
+			.amount(chargeAmount)
+			.userId(userId)
+			.idempotencyKey(idempotencyKey)
+			.build();
+
+		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of(pgTransactionId,
+			PaymentGatewayStatus.SUCCESS, chargeAmount);
+
+		when(pointChargeRepository.findById(pointChargeId)).thenReturn(Optional.of(existingPointCharge));
+
+		// when
+		PointChargeResponse response = pointCommandService.charge(pointChargeId, request, pgResponse);
+		assertEquals(chargeAmount, response.getChargedAmount());
+		assertEquals(chargeAmount + basePoint, response.getBalanceAfterChange());
+		verify(pointRepository, never()).findByUserIdForUpdate(anyLong());
+		verify(pointHistoryRepository, never()).save(any());
+	}
+
+	// pg가 실패했을 때 멱등 처리
+	@Test
+	void givenFailedPaymentGateway_whenChargePoint_thenPointChargeFailAndNoPointHistory() {
+		// given
+		long userId = 1L;
+		long chargeAmount = 5000L;
+		String idempotencyKey = "unique-key-123";
+		Long pointChargeId = 10L;
+		String pgTransactionId = "pg-tx-213";
+		Long basePoint = 3000L;
+		Point point = Point.createPoint(userId);
+		point.increaseBalance(basePoint); // 기존 포인트
 		point.increaseBalance(chargeAmount); // 동시성으로 인해 이미 충전된 상태 가정
 		PointCharge existingPointCharge = createPointCharge(userId, chargeAmount, idempotencyKey, pointChargeId);
 
@@ -174,33 +191,24 @@ class PointServiceTest {
 			.idempotencyKey(idempotencyKey)
 			.build();
 
-		when(pointRepository.findByUserIdForUpdate(userId))
-			.thenReturn(Optional.of(point)).thenReturn((Optional.of(point)));
-		when(pointChargeRepository.save(any()))
-			.thenThrow(new DataIntegrityViolationException("Unique constraint violation")); // 이미 존재한다고 가정
-		when(pointChargeRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
-			.thenReturn(Optional.empty()).thenReturn((Optional.of(existingPointCharge)));
+		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of(pgTransactionId,
+			PaymentGatewayStatus.FAILURE, chargeAmount);
+
+		when(pointChargeRepository.findById(pointChargeId)).thenReturn(Optional.of(existingPointCharge));
 
 		// when
-		PointChargeResponse response = pointService.charge(request);
-
-		// then
-		assertEquals(userId, response.getUserId());
+		PointChargeResponse response = pointCommandService.charge(pointChargeId, request, pgResponse);
 		assertEquals(chargeAmount, response.getChargedAmount());
-		assertEquals(8000L, response.getBalanceAfterChange()); // 3000 + 5000
-		verify(pgPort, never()).requestPayment(any(PaymentGatewayRequest.class)); // PG 요청 안함
-	}
-
-	// pg가 실패했을 때 예외 발생 테스트 - 일단 RuntimeException, 이거는 일단 PG 설계 구체화 하라고 하면 작성하는걸로~
-	@Test
-	void givenFailedPaymentGateway_whenChargePoint_thenThrowException() {
-
+		assertEquals(ChargeStatus.FAILED, response.getStatus());
+		assertEquals("pg 결제 실패", response.getFailReason());
+		verify(pointHistoryRepository, never()).save(any());
+		verify(pointRepository, never()).findByUserIdForUpdate(userId);
 	}
 
 
-	private PointCharge createPointCharge(long userId, long amount, String idempotencyKey, Long id) {
+	private PointCharge createPointCharge(long userId, long amount, String idempotencyKey, Long pointChargeId) {
 		PointCharge pointCharge = PointCharge.of(userId, amount, idempotencyKey);
-		ReflectionTestUtils.setField(pointCharge, "id", id);
+		ReflectionTestUtils.setField(pointCharge, "id", pointChargeId);
 		return pointCharge;
 	}
 }

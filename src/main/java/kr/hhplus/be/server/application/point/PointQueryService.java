@@ -14,15 +14,10 @@ import lombok.RequiredArgsConstructor;
 public class PointQueryService {
 	private final PointChargeRepository pointChargeRepository;
 	public PointChargeResponse findChargeResult(long userId, String idempotencyKey) {
-		PointCharge pointCharge = pointChargeRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+		PointCharge pc = pointChargeRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
 			.orElseThrow(
 				() -> new PointChargeNotFoundException(ErrorCode.NOT_FOUND_POINT_CHARGE, userId, idempotencyKey));
 
-		return PointChargeResponse.builder()
-			.userId(pointCharge.getUserId())
-			.chargedAmount(pointCharge.getAmount())
-			.balanceAfterChange(pointCharge.getBalanceAfterChange())
-			.idempotencyKey(pointCharge.getIdempotencyKey())
-			.build();
+		return PointChargeResponse.of(pc);
 	}
 }

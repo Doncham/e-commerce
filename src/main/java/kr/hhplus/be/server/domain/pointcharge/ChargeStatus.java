@@ -1,7 +1,7 @@
 package kr.hhplus.be.server.domain.pointcharge;
 
 public enum ChargeStatus {
-	REQUESTED,
+	PENDING,
 	SUCCEEDED,
 	FAILED
 }
