@@ -15,7 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.hhplus.be.server.application.point.PointService;
+import kr.hhplus.be.server.application.point.PointCommandService;
 import kr.hhplus.be.server.domain.outbox.OutboxEvent;
 import kr.hhplus.be.server.domain.outbox.OutboxStatus;
 import kr.hhplus.be.server.domain.outbox.PaymentCompletedPayload;
@@ -26,7 +26,7 @@ class OutboxProcessorTest {
 	@InjectMocks
 	private OutboxProcessor outboxProcessor;
 	@Mock
-	private PointService pointService;
+	private PointCommandService pointService;
 	@Mock
 	private OutboxEventRepository outboxEventRepository;
 	@Mock
@@ -85,7 +85,4 @@ class OutboxProcessorTest {
 		// then
 		assertEquals(OutboxStatus.FAILED, event.getStats());
 	}
-
-
-
 }

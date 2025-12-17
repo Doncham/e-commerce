@@ -17,6 +17,9 @@ public enum ErrorCode {
 	NOT_FOUND_POINT, // 포인트 없음
 	NEGATIVE_POINT_USE, // 음수 포인트 사용
 	NOT_FOUND_POINT_CHARGE, // 포인트충전 없음
+	NOT_FOUNT_PAYMENT,
+	ALREADY_PAID_PAYMENT, // 이미 결제됨
+	ALREADY_PAID_ORDER, // 이미 결제됨
 
 
 }

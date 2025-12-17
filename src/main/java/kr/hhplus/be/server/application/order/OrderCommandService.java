@@ -11,6 +11,7 @@ import kr.hhplus.be.server.application.point.PointPort;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
 import kr.hhplus.be.server.application.cartItem.CartItemPort;
+import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservation;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.point.Point;
 import kr.hhplus.be.server.domain.point.exception.PointNotEnoughException;
@@ -27,6 +28,7 @@ import kr.hhplus.be.server.api.order.response.OrderDraftCreateResponse;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.user.User;
 import kr.hhplus.be.server.domain.user.UserPort;
+import kr.hhplus.be.server.infrastructure.persistence.inventoryReserve.InventoryReserveRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -38,6 +40,7 @@ public class OrderCommandService implements OrderUseCase {
 	private final CartItemPort cartItemPort;
 	private final InventoryPort inventoryPort;
 	private final PointPort pointPort;
+	private final InventoryReserveRepository inventoryReserveRepository;
 
 	@Transactional
 	@Override
@@ -99,6 +102,9 @@ public class OrderCommandService implements OrderUseCase {
 			if(inv.availableStock() - ci.getQty() < 0 ){
 				throw new InSufficientStockException(ErrorCode.NOT_SUFFICIENT_STOCK, ci.getProduct().getId().toString());
 			}
+			// 재고 차감 예약
+			InventoryReservation invReserve = InventoryReservation.reserve(orderDraft.getId(), inv.getId(), ci.getQty());
+			inventoryReserveRepository.save(invReserve);
 			inv.reserveStock(ci.getQty());
 		}
 		// cartItem -> orderProduct 변환

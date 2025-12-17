@@ -8,7 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.hhplus.be.server.application.point.PointService;
+import kr.hhplus.be.server.application.point.PointCommandService;
 import kr.hhplus.be.server.domain.outbox.OutboxEvent;
 import kr.hhplus.be.server.domain.outbox.OutboxStatus;
 import kr.hhplus.be.server.domain.outbox.PaymentCompletedPayload;
@@ -20,7 +20,7 @@ import lombok.RequiredArgsConstructor;
 public class OutboxProcessor {
 	private final OutboxEventRepository outboxEventRepository;
 	private final ObjectMapper objectMapper;
-	private final PointService pointService;
+	private final PointCommandService pointService;
 	@Transactional
 	public void processOutbox(){
 		List<OutboxEvent> events = outboxEventRepository.findTop100ByStatusOrderByIdAsc(

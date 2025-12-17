@@ -49,7 +49,16 @@ public class Inventory extends BaseTimeEntity {
 		return Math.max(stock - reserved, 0);
 	}
 
-	public void reserveStock(int qty) {
+	public void reserveStock(long qty) {
 		this.reserved += qty;
+	}
+
+	public void releaseReserve(Long qty) {
+		reserved -= qty;
+	}
+
+	public void confirmReserve(Long qty) {
+		reserved -= qty;
+		stock -= qty;
 	}
 }

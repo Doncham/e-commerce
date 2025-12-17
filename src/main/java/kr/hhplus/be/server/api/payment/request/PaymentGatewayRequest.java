@@ -29,6 +29,15 @@ public class PaymentGatewayRequest {
 		);
 	}
 
+	public static PaymentGatewayRequest forOrderPayment(Long orderId, Long amount, String idemKey) {
+		return new PaymentGatewayRequest(
+			PaymentPurpose.ORDER_PAYMENT,
+			orderId,
+			amount,
+			idemKey
+		);
+	}
+
 	public static PaymentGatewayRequest forPointCharge(Long chargeId, Long amount, String idempotencyKey) {
 		return new PaymentGatewayRequest(
 			PaymentPurpose.POINT_CHARGE,

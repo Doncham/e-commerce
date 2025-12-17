@@ -13,9 +13,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PointController {
 	private final PointCommandService pointService;
-	@PostMapping("/points/charge")
-	public ResponseEntity<PointChargeResponse> chargePoint(PointChargeRequest request) {
-		PointChargeResponse response = pointService.charge(request);
-		return ResponseEntity.ok(response);
-	}
+	// @PostMapping("/points/charge")
+	// public ResponseEntity<PointChargeResponse> chargePoint(PointChargeRequest request) {
+	// 	PointChargeResponse response = pointService.charge(request);
+	// 	return ResponseEntity.ok(response);
+	// }
 }

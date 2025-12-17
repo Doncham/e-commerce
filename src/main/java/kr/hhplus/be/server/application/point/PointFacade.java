@@ -8,7 +8,6 @@ import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.api.point.request.PointChargeRequest;
 import kr.hhplus.be.server.api.point.response.PointChargeResponse;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
-import kr.hhplus.be.server.domain.point.exception.PointAmountNotValidException;
 import kr.hhplus.be.server.domain.point.exception.PointChargeNegativeException;
 import kr.hhplus.be.server.domain.pointcharge.PointCharge;
 import kr.hhplus.be.server.exception.ErrorCode;

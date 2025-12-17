@@ -29,16 +29,16 @@ public class OrderProduct {
 	private Long productId;
 	private String productNameSnap;
 	private Long unitPrice;
-	private int qty;
+	private long qty;
 
-	private OrderProduct(Long productId, String productNameSnap, Long unitPrice, int qty) {
+	private OrderProduct(Long productId, String productNameSnap, Long unitPrice, long qty) {
 		this.productId = Objects.requireNonNull(productId);
 		this.productNameSnap = Objects.requireNonNull(productNameSnap);
 		this.unitPrice = Objects.requireNonNull(unitPrice);
 		if(qty <= 0) throw new IllegalArgumentException("qty must be greater than zero");
 		this.qty = qty;
 	}
-	public static OrderProduct create(Long productId, String productNameSnap, Long unitPrice, int qty) {
+	public static OrderProduct create(Long productId, String productNameSnap, Long unitPrice, long qty) {
 		return new OrderProduct(productId, productNameSnap, unitPrice, qty);
 	}
 	public void initOrder(Order order) {

@@ -41,7 +41,7 @@ public class CartItem extends BaseTimeEntity {
 	private Product product;
 
 	@Column(nullable = false)
-	private int qty;
+	private long qty;
 
 	@Builder
 	public CartItem(Cart cart, Product product, int qty) {

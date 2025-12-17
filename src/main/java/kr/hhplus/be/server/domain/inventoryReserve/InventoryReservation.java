@@ -34,6 +34,7 @@ public class InventoryReservation extends BaseTimeEntity {
 	private Long qty;
 	@Enumerated(EnumType.STRING)
 	private InventoryReserveStatus status;
+	private String failReason;
 
 	private InventoryReservation(Long orderId, Long inventoryId, Long qty, InventoryReserveStatus status) {
 		this.orderId = orderId;
@@ -49,5 +50,25 @@ public class InventoryReservation extends BaseTimeEntity {
 			qty,
 			InventoryReserveStatus.RESERVED
 		);
+	}
+
+	public void release(String failReason) {
+		if (this.status == InventoryReserveStatus.RELEASED) return;
+		// CONFIRMED는 release 금지
+		if (this.status == InventoryReserveStatus.CONFIRMED) {
+			throw new IllegalStateException("Cannot release a confirmed reservation. orderId=" + orderId + ", inventoryId=" + inventoryId);
+		}
+		this.failReason = failReason;
+		this.status = InventoryReserveStatus.RELEASED;
+	}
+
+	public void confirm() {
+		if(this.status == InventoryReserveStatus.CONFIRMED) return;
+
+		if(this.status == InventoryReserveStatus.RELEASED) {
+			throw new IllegalArgumentException("Cannot confirm a released reservation. orderId=" + orderId + ", inventoryId=" + inventoryId);
+		}
+
+		this.status = InventoryReserveStatus.CONFIRMED;
 	}
 }

@@ -91,8 +91,7 @@ public class Order extends BaseTimeEntity {
 		Long couponDiscount,
 		String memo,
 		Long point
-	)
-	{
+	) {
 		ensureDraftState();
 		// null, empty 체크
 		validateItems(items);
