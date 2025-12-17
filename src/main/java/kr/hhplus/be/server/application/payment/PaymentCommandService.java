@@ -53,7 +53,7 @@ public class PaymentCommandService {
 		}
 
 		Payment pending = Payment.createPayment(order, idemKey, order.getPayAmount());
-		paymentPort.saveAndFlush(pending); // 유니크 충돌 빠르게 확정
+		pending = paymentPort.saveAndFlush(pending); // 유니크 충돌 빠르게 확정
 
 		return PaymentAttempt.of(orderId, pending.getId(), pending.getAmount(), pending.getIdempotencyKey());
 	}

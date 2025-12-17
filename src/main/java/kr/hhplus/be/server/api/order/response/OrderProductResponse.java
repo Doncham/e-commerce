@@ -10,10 +10,10 @@ import lombok.NoArgsConstructor;
 public class OrderProductResponse {
 	private Long productId;
 	private String productName;
-	private int qty;
+	private long qty;
 	private Long unitPrice;
 	@Builder
-	public OrderProductResponse(Long productId, String productName, int qty, Long unitPrice) {
+	public OrderProductResponse(Long productId, String productName, long qty, Long unitPrice) {
 		this.productId = productId;
 		this.productName = productName;
 		this.qty = qty;

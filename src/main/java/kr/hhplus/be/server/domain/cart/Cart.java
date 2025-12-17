@@ -34,7 +34,7 @@ public class Cart extends BaseTimeEntity {
 	private User user;
 
 	@Column(nullable = false)
-	private int itemCount = 0;
+	private long itemCount = 0;
 
 	@Column(nullable = false)
 	private long itemTotalPrice = 0L;
@@ -49,7 +49,7 @@ public class Cart extends BaseTimeEntity {
 
 	public void reCalcTotals() {
 		this.itemCount = items.stream()
-			.mapToInt(CartItem::getQty)
+			.mapToLong(CartItem::getQty)
 			.sum();
 		this.itemTotalPrice = items.stream()
 			.mapToLong(CartItem::getCurrentTotalPrice)
