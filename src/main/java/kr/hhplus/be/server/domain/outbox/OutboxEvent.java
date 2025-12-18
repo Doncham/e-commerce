@@ -39,16 +39,16 @@ public class OutboxEvent extends BaseTimeEntity {
 	@Lob
 	private String payload;
 	@Enumerated(EnumType.STRING)
-	private OutboxStatus stats;
+	private OutboxStatus status;
 	private int retryCount;
 
-	public OutboxEvent(String aggregateType, Long aggregateId, String eventType, String payload, OutboxStatus stats,
+	public OutboxEvent(String aggregateType, Long aggregateId, String eventType, String payload, OutboxStatus status,
 		int retryCount) {
 		this.aggregateType = aggregateType;
 		this.aggregateId = aggregateId;
 		this.eventType = eventType;
 		this.payload = payload;
-		this.stats = stats;
+		this.status = status;
 		this.retryCount = retryCount;
 	}
 
@@ -60,11 +60,11 @@ public class OutboxEvent extends BaseTimeEntity {
 	}
 
 	public void markProcessed() {
-		this.stats = OutboxStatus.PROCESSED;
+		this.status = OutboxStatus.PROCESSED;
 	}
 	// 재시도 로직 나중에 추가하기
 	public void markFailed() {
-		this.stats = OutboxStatus.FAILED;
+		this.status = OutboxStatus.FAILED;
 		this.retryCount++;
 	}
 }

@@ -5,7 +5,6 @@ import static org.mockito.Mockito.*;
 
 import java.util.Optional;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -22,13 +21,13 @@ import kr.hhplus.be.server.application.point.PointCommandService;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
 import kr.hhplus.be.server.domain.point.Point;
-import kr.hhplus.be.server.domain.point.PointRepository;
+import kr.hhplus.be.server.infrastructure.persistence.point.PointRepository;
 import kr.hhplus.be.server.domain.point.exception.PointAmountNotValidException;
 import kr.hhplus.be.server.domain.pointcharge.ChargeStatus;
 import kr.hhplus.be.server.domain.pointcharge.PointCharge;
 import kr.hhplus.be.server.domain.pointhistory.ChangeType;
 import kr.hhplus.be.server.domain.pointhistory.PointHistory;
-import kr.hhplus.be.server.domain.pointhistory.PointHistoryRepository;
+import kr.hhplus.be.server.infrastructure.persistence.pointhistory.PointHistoryRepository;
 import kr.hhplus.be.server.domain.pointhistory.SourceType;
 import kr.hhplus.be.server.infrastructure.persistence.pointcharge.PointChargeRepository;
 

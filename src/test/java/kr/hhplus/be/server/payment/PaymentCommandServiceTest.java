@@ -20,7 +20,7 @@ import kr.hhplus.be.server.application.order.OrderPort;
 import kr.hhplus.be.server.application.payment.PaymentCommandService;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
 import kr.hhplus.be.server.domain.inventory.Inventory;
-import kr.hhplus.be.server.domain.inventory.InventoryRepository;
+import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
 import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservation;
 import kr.hhplus.be.server.domain.inventoryReserve.InventoryReserveStatus;
 import kr.hhplus.be.server.domain.order.Order;

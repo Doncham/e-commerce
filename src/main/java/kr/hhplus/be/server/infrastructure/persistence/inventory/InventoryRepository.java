@@ -1,4 +1,4 @@
-package kr.hhplus.be.server.domain.inventory;
+package kr.hhplus.be.server.infrastructure.persistence.inventory;
 
 import java.util.List;
 import java.util.Optional;
@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.QueryHint;
+import kr.hhplus.be.server.domain.inventory.Inventory;
 
 @Repository
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {

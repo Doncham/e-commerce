@@ -5,12 +5,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.domain.order.Order;
-import kr.hhplus.be.server.domain.order.OrderRepository;
+import kr.hhplus.be.server.infrastructure.persistence.order.OrderRepository;
 import kr.hhplus.be.server.domain.order.exception.OrderNotFoundException;
 import kr.hhplus.be.server.domain.payment.Payment;
-import kr.hhplus.be.server.domain.payment.PaymentRepository;
+import kr.hhplus.be.server.infrastructure.persistence.payment.PaymentRepository;
 import kr.hhplus.be.server.domain.payment.PaymentStatus;
-import kr.hhplus.be.server.domain.payment.exception.PaymentNotFoundException;
 import kr.hhplus.be.server.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 

@@ -1,4 +1,4 @@
-package kr.hhplus.be.server.domain.order;
+package kr.hhplus.be.server.infrastructure.persistence.order;
 
 import java.util.Optional;
 
@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import jakarta.persistence.LockModeType;
+import kr.hhplus.be.server.domain.order.Order;
 
 @Repository
 public interface OrderRepository extends JpaRepository<Order, Long> {

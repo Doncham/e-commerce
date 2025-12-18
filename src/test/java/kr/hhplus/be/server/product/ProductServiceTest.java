@@ -13,7 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import kr.hhplus.be.server.application.product.ProductService;
 import kr.hhplus.be.server.domain.inventory.Inventory;
-import kr.hhplus.be.server.domain.inventory.InventoryRepository;
+import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
 import kr.hhplus.be.server.domain.product.Product;
 import kr.hhplus.be.server.domain.inventory.InventoryStatus;
 import kr.hhplus.be.server.domain.inventory.exception.NotFoundInventoryException;

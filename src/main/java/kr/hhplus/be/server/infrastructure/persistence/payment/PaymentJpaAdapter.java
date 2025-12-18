@@ -6,7 +6,6 @@ import kr.hhplus.be.server.domain.payment.exception.PaymentNotFoundException;
 import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.domain.payment.Payment;
 import kr.hhplus.be.server.domain.payment.PaymentStatus;
-import kr.hhplus.be.server.domain.payment.PaymentRepository;
 import kr.hhplus.be.server.domain.payment.exception.PaidOrderHavePaymentException;
 import kr.hhplus.be.server.domain.payment.PaymentPort;
 import lombok.RequiredArgsConstructor;

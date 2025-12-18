@@ -1,4 +1,4 @@
-package kr.hhplus.be.server.domain.point;
+package kr.hhplus.be.server.infrastructure.persistence.point;
 
 import java.util.Optional;
 

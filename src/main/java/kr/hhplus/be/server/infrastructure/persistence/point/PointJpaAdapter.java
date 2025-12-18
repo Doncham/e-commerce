@@ -4,7 +4,6 @@ import org.springframework.stereotype.Repository;
 
 import kr.hhplus.be.server.application.point.PointPort;
 import kr.hhplus.be.server.domain.point.Point;
-import kr.hhplus.be.server.domain.point.PointRepository;
 import kr.hhplus.be.server.domain.point.exception.PointNotFoundException;
 import kr.hhplus.be.server.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;

@@ -6,7 +6,6 @@ import org.springframework.stereotype.Repository;
 
 import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.domain.order.Order;
-import kr.hhplus.be.server.domain.order.OrderRepository;
 import kr.hhplus.be.server.domain.order.exception.OrderNotFoundException;
 import kr.hhplus.be.server.application.order.OrderPort;
 import lombok.RequiredArgsConstructor;

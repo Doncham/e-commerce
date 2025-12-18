@@ -58,8 +58,8 @@ class OutboxProcessorTest {
 		outboxProcessor.processOutbox();
 
 		// then
-		Assertions.assertEquals(OutboxStatus.PROCESSED, event1.getStats());
-		Assertions.assertEquals(OutboxStatus.PROCESSED, event2.getStats());
+		Assertions.assertEquals(OutboxStatus.PROCESSED, event1.getStatus());
+		Assertions.assertEquals(OutboxStatus.PROCESSED, event2.getStatus());
 		verify(pointService, times(2))
 			.earnForOrder(anyLong(), anyLong(), anyLong());
 
@@ -83,6 +83,6 @@ class OutboxProcessorTest {
 		outboxProcessor.processOutbox();
 
 		// then
-		assertEquals(OutboxStatus.FAILED, event.getStats());
+		assertEquals(OutboxStatus.FAILED, event.getStatus());
 	}
 }

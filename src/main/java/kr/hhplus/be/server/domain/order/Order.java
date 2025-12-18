@@ -30,6 +30,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(
+	name = "orders",
 	uniqueConstraints = @UniqueConstraint(
 		name = "ux_userid_and_idempotencyKey",
 		columnNames = {"user_id", "idempotency_key"}

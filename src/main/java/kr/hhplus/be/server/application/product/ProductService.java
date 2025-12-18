@@ -3,7 +3,7 @@ package kr.hhplus.be.server.application.product;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.hhplus.be.server.domain.inventory.InventoryRepository;
+import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
 import kr.hhplus.be.server.domain.inventory.InventoryStatus;
 import kr.hhplus.be.server.domain.inventory.exception.NotFoundInventoryException;
 import kr.hhplus.be.server.api.product.ProductDetailResponse;
