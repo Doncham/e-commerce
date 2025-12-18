@@ -26,9 +26,16 @@ import kr.hhplus.be.server.domain.outbox.PaymentCompletedPayload;
 import kr.hhplus.be.server.domain.payment.Payment;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
 import kr.hhplus.be.server.domain.payment.PaymentPort;
+import kr.hhplus.be.server.domain.point.Point;
+import kr.hhplus.be.server.domain.point.PointRepository;
+import kr.hhplus.be.server.domain.point.exception.PointNotFoundException;
+import kr.hhplus.be.server.domain.pointReservation.PointReservation;
+import kr.hhplus.be.server.domain.pointReservation.PointReserveStatus;
+import kr.hhplus.be.server.domain.pointReservation.exception.PointReservationNotFoundException;
 import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.infrastructure.persistence.inventoryReserve.InventoryReserveRepository;
 import kr.hhplus.be.server.infrastructure.persistence.outbox.OutboxEventRepository;
+import kr.hhplus.be.server.infrastructure.persistence.pointReservation.PointReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -42,6 +49,8 @@ public class PaymentCommandService {
 	private final ObjectMapper objectMapper;
 	private final InventoryReserveRepository invReserveRepo;
 	private final InventoryRepository invRepo;
+	private final PointRepository pointRepo;
+	private final PointReservationRepository pointReservationRepo;
 
 	@Transactional
 	public PaymentAttempt preparePayment(Long orderId, String idemKey) {
@@ -73,35 +82,58 @@ public class PaymentCommandService {
 				payment.paymentFailed(pgResp.getPgTransactionId(), "PAY_AMOUNT_MISMATCH");
 				order.failed();
 				// 예약 해제
-				releaseReservations(order);
+				releasePointReservations(order);
+				releaseInventoryReservations(order);
 				return PayResponse.of(order, payment);
 			}
 
 			// 결제 성공 기록
 			payment.paymentSuccess(pgResp.getPgTransactionId(), LocalDateTime.now());
-			order.paid();
 
 			// 예약 확정(재고/포인트사용/쿠폰)
-			confirmReservations(order);
+			confirmPointReservations(order);
+			confirmInventoryReservations(order);
+
 
 			// 포인트 적립만 outbox
 			publishPointEarnOutbox(order, pgResp.getPgTransactionId());
+
+			order.paid();
 
 			return PayResponse.of(order, payment);
 		} else {
 			// 결제 실패 기록 + 예약 해제
 			payment.paymentFailed(pgResp.getPgTransactionId(), "PG_FAILED");
+
+			releasePointReservations(order);
+			releaseInventoryReservations(order);
+
+
 			order.failed();
-			releaseReservations(order);
 			return PayResponse.of(order, payment);
 		}
 	}
+	private void confirmPointReservations(Order order) {
+		if (order.getPointUsed() == 0) return;
+		// 포인트 사용 확정(간단 버전)
+		PointReservation pr = pointReservationRepo.findByOrderId(order.getId())
+			.orElseThrow(() ->
+				new PointReservationNotFoundException(ErrorCode.NOT_FOUND_POINT_RESERVATION, order.getId()));
+		if(pr.getStatus() == PointReserveStatus.CONFIRMED) return;
+		if(pr.getStatus() == PointReserveStatus.RELEASED) {
+			throw new IllegalArgumentException("Reservation already released. orderId = " + order.getId());
+		}
+		Point point = pointRepo.findByUserIdForUpdate(order.getUser().getId())
+			.orElseThrow(() -> new PointNotFoundException(ErrorCode.NOT_FOUND_POINT, order.getUser().getId()));
 
+		pr.confirm();
+		point.confirmUse(pr.getAmount());
+	}
 
-	private void confirmReservations(Order order) {
+	private void confirmInventoryReservations(Order order) {
 		List<InventoryReservation> reserves = invReserveRepo
 			.findByOrderIdAndStatus(order.getId(), InventoryReserveStatus.RESERVED);
-		if (reserves.isEmpty()) throw new IllegalArgumentException("reserves must not be null");
+		if (reserves.isEmpty()) return; // 멱등/재시도 안전
 
 		List<Long> invIds = reserves.stream().map(InventoryReservation::getInventoryId).sorted().toList();
 		List<Inventory> inventories = invRepo.findByIdsForUpdate(invIds);
@@ -113,16 +145,30 @@ public class PaymentCommandService {
 			r.confirm();
 		}
 
-		// 포인트 사용 확정(간단 버전)
-		//pointPort.confirmReserved(order.getUser().getId(), order.getPointUsed());
-
 		// 쿠폰 확정도 같은 방식(RESERVED -> CONSUMED)
 	}
 
-	private void releaseReservations(Order order) {
+	private void releasePointReservations(Order order) {
+		if (order.getPointUsed() == 0) return;
+
+		PointReservation pr = pointReservationRepo.findByOrderId(order.getId())
+			.orElseThrow(() ->
+				new PointReservationNotFoundException(ErrorCode.NOT_FOUND_POINT_RESERVATION, order.getId()));
+		if(pr.getStatus() == PointReserveStatus.RELEASED) return;
+		if(pr.getStatus() == PointReserveStatus.CONFIRMED) {
+			throw new IllegalArgumentException("Reservation already confirmed. orderId = " + order.getId());
+		}
+
+		Point point = pointRepo.findByUserIdForUpdate(order.getUser().getId())
+			.orElseThrow(() -> new PointNotFoundException(ErrorCode.NOT_FOUND_POINT, order.getUser().getId()));
+
+		pr.release("PAYMENT_FAILED");
+		point.releaseReserve(pr.getAmount());
+	}
+	private void releaseInventoryReservations(Order order) {
 		List<InventoryReservation> reserves = invReserveRepo
 			.findByOrderIdAndStatus(order.getId(), InventoryReserveStatus.RESERVED);
-		if (reserves.isEmpty()) throw new IllegalArgumentException("reserves must not be null");
+		if (reserves.isEmpty()) return; // 멱등/재시도 안전
 
 		List<Long> invIds = reserves.stream().map(InventoryReservation::getInventoryId).sorted().toList();
 		List<Inventory> inventories = invRepo.findByIdsForUpdate(invIds);
@@ -134,8 +180,6 @@ public class PaymentCommandService {
 			inv.releaseReserve(r.getQty());
 			r.release("PAYMENT_FAILED");
 		}
-
-		// pointPort.releaseReserved(order.getUser().getId(), order.getPointUsed());
 	}
 
 	private void publishPointEarnOutbox(Order order, String pgTransactionId) {
@@ -155,7 +199,7 @@ public class PaymentCommandService {
 		OutboxEvent outboxEvent = OutboxEvent.of(
 			"ORDER",
 			order.getId(),
-			"PAYMENT_COMPLETED",
+			"POINT_EARN_REQUESTED",
 			payloadJson
 		);
 		outboxEventRepository.save(outboxEvent);

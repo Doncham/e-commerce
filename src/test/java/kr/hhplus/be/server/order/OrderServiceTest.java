@@ -27,9 +27,12 @@ import kr.hhplus.be.server.api.order.response.OrderDraftCreateResponse;
 import kr.hhplus.be.server.application.order.OrderPort;
 import kr.hhplus.be.server.domain.order.ShippingInfo;
 import kr.hhplus.be.server.domain.point.Point;
+import kr.hhplus.be.server.domain.pointReservation.PointReservation;
 import kr.hhplus.be.server.domain.product.Product;
 import kr.hhplus.be.server.domain.user.User;
 import kr.hhplus.be.server.domain.user.UserPort;
+import kr.hhplus.be.server.infrastructure.persistence.inventoryReserve.InventoryReserveRepository;
+import kr.hhplus.be.server.infrastructure.persistence.pointReservation.PointReservationRepository;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
@@ -47,6 +50,10 @@ class OrderServiceTest {
 	private InventoryPort inventoryPort;
 	@Mock
 	private PointPort pointPort;
+	@Mock
+	private InventoryReserveRepository inventoryReserveRepo;
+	@Mock
+	private PointReservationRepository pointReservationRepo;
 
 	@Test
 	// 주문 생성 성공 테스트
@@ -134,6 +141,7 @@ class OrderServiceTest {
 		Long addressId = 1L;
 		Long userId = 15L;
 		Long couponId = 30L;
+		Long orderId = 3L;
 		OrderDraftCreateRequest request = OrderDraftCreateRequest.builder()
 			.cartId(cartId)
 			.addressId(addressId)
@@ -150,7 +158,6 @@ class OrderServiceTest {
 			.zipcode("12345")
 			.receiver("홍길동")
 			.build();
-		ShippingInfo shippingInfo = new ShippingInfo(address);
 
 		Point point = Point.createPoint(userId);
 		point.increaseBalance(2000L);
@@ -184,11 +191,17 @@ class OrderServiceTest {
 				inventory2
 			));
 
+		Order draft = Order.createDraft(testUser(userId), new ShippingInfo(address), "key123");
+		ReflectionTestUtils.setField(draft, "id", orderId);
+
+		when(orderPort.saveAndFlush(any(Order.class))).thenReturn(draft);
+
+
 		// when + then
 		assertThrows(InSufficientStockException.class, () -> {
 			orderService.createOrder(request);
 		});
-		verify(orderPort, never()).save(any(Order.class));
+		verify(orderPort).saveAndFlush(any(Order.class));
 
 	}
 

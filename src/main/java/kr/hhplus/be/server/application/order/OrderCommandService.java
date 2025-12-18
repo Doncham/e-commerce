@@ -16,6 +16,7 @@ import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.point.Point;
 import kr.hhplus.be.server.domain.point.exception.PointNotEnoughException;
 import kr.hhplus.be.server.domain.point.exception.PointUseNegativeException;
+import kr.hhplus.be.server.domain.pointReservation.PointReservation;
 import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.domain.inventory.Inventory;
 import kr.hhplus.be.server.domain.inventory.exception.InSufficientStockException;
@@ -29,6 +30,7 @@ import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.user.User;
 import kr.hhplus.be.server.domain.user.UserPort;
 import kr.hhplus.be.server.infrastructure.persistence.inventoryReserve.InventoryReserveRepository;
+import kr.hhplus.be.server.infrastructure.persistence.pointReservation.PointReservationRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -40,7 +42,8 @@ public class OrderCommandService implements OrderUseCase {
 	private final CartItemPort cartItemPort;
 	private final InventoryPort inventoryPort;
 	private final PointPort pointPort;
-	private final InventoryReserveRepository inventoryReserveRepository;
+	private final InventoryReserveRepository inventoryReserveRepo;
+	private final PointReservationRepository pointReservationRepo;
 
 	@Transactional
 	@Override
@@ -76,6 +79,9 @@ public class OrderCommandService implements OrderUseCase {
 		}
 		// point 예약 + order에 point 관련 필드 넣기
 		point.reservePoint(pointUseAmount);
+		pointReservationRepo.save(
+			PointReservation.reserve(orderDraft.getId(), userId, pointUseAmount)
+		);
 
 		// cart 조회할 때 product도 한번에 fetch 조인으로 가져오자
 		List<CartItem> cartItems = cartItemPort.findByCartIdWithProduct(cartId);
@@ -104,7 +110,7 @@ public class OrderCommandService implements OrderUseCase {
 			}
 			// 재고 차감 예약
 			InventoryReservation invReserve = InventoryReservation.reserve(orderDraft.getId(), inv.getId(), ci.getQty());
-			inventoryReserveRepository.save(invReserve);
+			inventoryReserveRepo.save(invReserve);
 			inv.reserveStock(ci.getQty());
 		}
 		// cartItem -> orderProduct 변환

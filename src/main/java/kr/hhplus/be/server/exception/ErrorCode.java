@@ -20,6 +20,7 @@ public enum ErrorCode {
 	NOT_FOUNT_PAYMENT,
 	ALREADY_PAID_PAYMENT, // 이미 결제됨
 	ALREADY_PAID_ORDER, // 이미 결제됨
+	NOT_FOUND_POINT_RESERVATION,
 
 
 }

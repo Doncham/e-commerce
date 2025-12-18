@@ -37,4 +37,14 @@ public class Point {
 	}
 	public long availablePoint(){ return Math.max(balance - reserved, 0);}
 	public void reservePoint(Long qty) { this.reserved += qty; }
+
+	public void confirmUse(long amount) {
+		// 실무에서는 체크해서 예외 던져라
+		this.reserved -= amount;
+		this.balance -= amount;
+	}
+
+	public void releaseReserve(long amount) {
+		this.reserved -= amount;
+	}
 }
