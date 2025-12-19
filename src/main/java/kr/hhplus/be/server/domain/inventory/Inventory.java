@@ -35,14 +35,14 @@ public class Inventory extends BaseTimeEntity {
 	private LocalDateTime deletedAt;
 
 
-	private Inventory(Product product, Long stock, Long reserved) {
+	private Inventory(Product product, Long stock) {
 		this.product = product;
 		this.stock = stock;
-		this.reserved = reserved;
+		this.reserved = 0L;
 	}
 
-	public static Inventory of(Product product, Long stock, Long reserved) {
-		return new Inventory(product, stock, reserved);
+	public static Inventory of(Product product, Long stock) {
+		return new Inventory(product, stock);
 	}
 
 	public long availableStock() {

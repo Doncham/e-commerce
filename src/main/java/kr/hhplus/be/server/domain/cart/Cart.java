@@ -42,9 +42,13 @@ public class Cart extends BaseTimeEntity {
 	@OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<CartItem> items = new ArrayList<>();
 
-	@Builder
-	public Cart(User user) {
+
+	private Cart(User user) {
 		this.user = user;
+	}
+
+	public static Cart of(User user) {
+		return new Cart(user);
 	}
 
 	public void reCalcTotals() {

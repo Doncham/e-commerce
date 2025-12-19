@@ -43,11 +43,15 @@ public class CartItem extends BaseTimeEntity {
 	@Column(nullable = false)
 	private long qty;
 
-	@Builder
-	public CartItem(Cart cart, Product product, int qty) {
+	private CartItem(Cart cart, Product product, int qty) {
 		this.cart = cart;
 		this.product = product;
 		this.qty = qty;
+		cart.addItem(this);
+	}
+
+	public static CartItem of(Cart c, Product p, int qty) {
+		return new CartItem(c, p, qty);
 	}
 
 	public long getCurrentUnitPrice() {

@@ -33,13 +33,14 @@ class ProductServiceTest {
 		// given
 		long productId = 1L;
 		long inventoryId = 1L;
-
+		Inventory inventoryMock = mock(Inventory.class);
+		Product productMock = mock(Product.class);
+		when(productMock.getName()).thenReturn("Test Product");
+		when(productMock.getPrice()).thenReturn(1000L);
+		when(inventoryMock.availableStock()).thenReturn(5L);
+		when(inventoryMock.getProduct()).thenReturn(productMock);
 		when(inventoryRepository.findByProductId(productId)).thenReturn(
-			Optional.of(Inventory.of(
-				Product.createProduct("Test Product", "Test Product Desc", 1000L),
-				100L,
-				95L
-				))
+			Optional.of(inventoryMock)
 		);
 		// when
 		ProductDetailResponse dto = productService.getProductDetail(productId);
@@ -69,14 +70,17 @@ class ProductServiceTest {
 	void givenZeroStock_whenGetProductDetail_thenReturnSoldOutStatus() {
 		// given
 		long productId = 2L;
-
+		Inventory inventoryMock = mock(Inventory.class);
+		Product productMock = mock(Product.class);
+		when(productMock.getName()).thenReturn("Sold Out Product");
+		when(productMock.getPrice()).thenReturn(2000L);
+		when(inventoryMock.availableStock()).thenReturn(0L);
+		when(inventoryMock.getProduct()).thenReturn(productMock);
 		when(inventoryRepository.findByProductId(productId)).thenReturn(
-			Optional.of(Inventory.of(
-				Product.createProduct("Sold Out Product", "Sold Out Product Desc", 2000L),
-				50L,
-				50L
-				))
+			Optional.of(inventoryMock)
 		);
+
+
 		// when
 		ProductDetailResponse dto = productService.getProductDetail(productId);
 
@@ -95,8 +99,8 @@ class ProductServiceTest {
 		when(inventoryRepository.findByProductId(productId)).thenReturn(
 			Optional.of(Inventory.of(
 				Product.createProduct("In Stock Product", "In Stock Product Desc", 3000L),
-				100L,
-				20L
+				100L
+				//20L
 				))
 		);
 		// when
