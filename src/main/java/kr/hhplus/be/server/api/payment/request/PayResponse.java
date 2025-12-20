@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class PayResponse {
+	private Long paymentId;
 	private String transactionId;
 	private Long amount;
 	private Long orderId;
@@ -19,7 +20,8 @@ public class PayResponse {
 	private String message;
 
 	@Builder
-	private PayResponse(String transactionId, Long amount, Long orderId, PaymentStatus status, String failReason, String message) {
+	private PayResponse(Long paymentId, String transactionId, Long amount, Long orderId, PaymentStatus status, String failReason, String message) {
+		this.paymentId = paymentId;
 		this.transactionId = transactionId;
 		this.amount = amount;
 		this.orderId = orderId;
@@ -31,6 +33,7 @@ public class PayResponse {
 	public static PayResponse of(Order order, Payment payment){
 		String message = extractMessage(payment);
 		return PayResponse.builder()
+			.paymentId(payment.getId())
 			.orderId(order.getId())
 			.amount(order.getPayAmount())
 			.transactionId(payment.getPgTransactionId())

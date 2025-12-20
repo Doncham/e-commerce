@@ -3,8 +3,6 @@ package kr.hhplus.be.server.application.order;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import java.util.List;
-
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +12,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.hhplus.be.server.FixturePersist;
@@ -27,9 +24,6 @@ import kr.hhplus.be.server.domain.cartItem.CartItem;
 import kr.hhplus.be.server.domain.inventory.Inventory;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.OrderStatus;
-import kr.hhplus.be.server.domain.order.ShippingInfo;
-import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
-import kr.hhplus.be.server.domain.payment.Payment;
 import kr.hhplus.be.server.domain.point.Point;
 import kr.hhplus.be.server.domain.product.Product;
 import kr.hhplus.be.server.domain.user.User;
@@ -52,8 +46,6 @@ class OrderFacadeTest {
 	private UserRepository userRepository;
 	@Autowired
 	private OrderRepository orderRepository;
-	@Autowired
-	private OrderProductRepository orderProductRepository;
 	@Autowired
 	private ProductRepository productRepository;
 	@Autowired

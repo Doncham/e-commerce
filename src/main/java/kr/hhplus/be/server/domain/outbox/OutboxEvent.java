@@ -22,7 +22,7 @@ import lombok.NoArgsConstructor;
 	uniqueConstraints = {
 		@UniqueConstraint(
 			name = "ux_outbox_agg_event",
-			columnNames = {"aggregate_type", "aggregate_id", "event_type"}
+			columnNames = {"aggregate_id", "aggregate_type", "event_type"}
 		)
 	}
 )
@@ -30,19 +30,20 @@ public class OutboxEvent extends BaseTimeEntity {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
-	@Column(name = "aggregate_type")
-	private String aggregateType; // ORDER, POINT_CHARGE etc..
 	@Column(name = "aggregate_id")
 	private Long aggregateId;
+	@Column(name = "aggregate_type")
+	@Enumerated(EnumType.STRING)
+	private AggregateType aggregateType; // ORDER, POINT_CHARGE etc..
 	@Column(name = "event_type")
-	private String eventType; // PAYMENT_COMPLETED, POINT_CHARGED etc..
+	private EventType eventType; // PAYMENT_COMPLETED, POINT_CHARGED etc..
 	@Lob
 	private String payload;
 	@Enumerated(EnumType.STRING)
 	private OutboxStatus status;
 	private int retryCount;
 
-	public OutboxEvent(String aggregateType, Long aggregateId, String eventType, String payload, OutboxStatus status,
+	public OutboxEvent(AggregateType aggregateType, Long aggregateId, EventType eventType, String payload, OutboxStatus status,
 		int retryCount) {
 		this.aggregateType = aggregateType;
 		this.aggregateId = aggregateId;
@@ -52,9 +53,9 @@ public class OutboxEvent extends BaseTimeEntity {
 		this.retryCount = retryCount;
 	}
 
-	public static OutboxEvent of(String aggregateType,
+	public static OutboxEvent of(AggregateType aggregateType,
 		Long aggregateId,
-		String eventType,
+		EventType eventType,
 		String payload) {
 		return new OutboxEvent(aggregateType, aggregateId, eventType, payload, OutboxStatus.PENDING, 0);
 	}

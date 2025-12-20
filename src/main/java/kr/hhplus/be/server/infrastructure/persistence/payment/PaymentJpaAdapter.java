@@ -38,4 +38,9 @@ public class PaymentJpaAdapter implements PaymentPort {
 			.orElseThrow(() ->
 				new PaymentNotFoundException(ErrorCode.NOT_FOUNT_PAYMENT, paymentId));
 	}
+
+	@Override
+	public Long countByOrderIdAndIdempotencyKey(Long orderId, String idempotencyKey) {
+		return paymentRepository.countByOrderIdAndIdempotencyKey(orderId, idempotencyKey);
+	}
 }

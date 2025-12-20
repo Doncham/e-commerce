@@ -43,10 +43,7 @@ public class PaymentFacadeTest {
 		Long paymentId = 10L;
 		Long amount = 2500L;
 
-		PayRequest req = PayRequest.builder()
-			.orderId(orderId)
-			.idempotencyKey(idemKey)
-			.build();
+		PayRequest req = PayRequest.of(idemKey, orderId);
 
 		PaymentAttempt attempt = PaymentAttempt.of(orderId, paymentId, amount, idemKey);
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.SUCCESS, amount);
@@ -86,7 +83,7 @@ public class PaymentFacadeTest {
 		// given
 		Long orderId = 1L;
 		String idemKey = "idem-123";
-		PayRequest req = PayRequest.builder().orderId(orderId).idempotencyKey(idemKey).build();
+		PayRequest req = PayRequest.of(idemKey, orderId);
 
 		when(command.preparePayment(orderId, idemKey)).thenThrow(new DataIntegrityViolationException("dup"));
 		PayResponse fallback = PayResponse.builder().orderId(orderId).message("fallback").build();
@@ -107,7 +104,7 @@ public class PaymentFacadeTest {
 		// given
 		Long orderId = 1L;
 		String idemKey = "idem-123";
-		PayRequest req = PayRequest.builder().orderId(orderId).idempotencyKey(idemKey).build();
+		PayRequest req = PayRequest.of(idemKey, orderId);
 
 		when(command.preparePayment(orderId, idemKey))
 			.thenThrow(mock(OrderAlreadyPaidOrderException.class));

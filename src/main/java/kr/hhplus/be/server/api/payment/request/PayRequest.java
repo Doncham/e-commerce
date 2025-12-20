@@ -10,9 +10,12 @@ public class PayRequest {
 	private String idempotencyKey;
 	private Long orderId;
 
-	@Builder
-	public PayRequest(String idempotencyKey, Long orderId) {
+	private PayRequest(String idempotencyKey, Long orderId) {
 		this.idempotencyKey = idempotencyKey;
 		this.orderId = orderId;
+	}
+
+	public static PayRequest of(String idempotencyKey, Long orderId) {
+		return new PayRequest(idempotencyKey, orderId);
 	}
 }

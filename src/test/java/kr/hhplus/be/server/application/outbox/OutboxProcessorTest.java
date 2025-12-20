@@ -16,6 +16,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.hhplus.be.server.application.point.PointCommandService;
+import kr.hhplus.be.server.domain.outbox.AggregateType;
+import kr.hhplus.be.server.domain.outbox.EventType;
 import kr.hhplus.be.server.domain.outbox.OutboxEvent;
 import kr.hhplus.be.server.domain.outbox.OutboxStatus;
 import kr.hhplus.be.server.domain.outbox.PaymentCompletedPayload;
@@ -38,9 +40,9 @@ class OutboxProcessorTest {
 		Long userId = 1L;
 
 		OutboxEvent event1 = OutboxEvent.of(
-			"ORDER", 1L, "PAYMENT_COMPLETED", "payload");
+			AggregateType.ORDER, 1L, EventType.PAYMENT_COMPLETION_GIVE_POINT, "payload");
 		OutboxEvent event2 = OutboxEvent.of(
-			"ORDER", 2L, "PAYMENT_COMPLETED", "payload");
+			AggregateType.ORDER, 2L, EventType.PAYMENT_COMPLETION_GIVE_POINT, "payload");
 
 		// given
 		List<OutboxEvent> outboxEvents = List.of(event1, event2);
@@ -68,7 +70,7 @@ class OutboxProcessorTest {
 	@Test
 	void givenPointServiceFailure_whenProcessOutbox_thenEventStatusBecomeFailed() throws Exception {
 		// given
-		OutboxEvent event = OutboxEvent.of("ORDER", 1L, "PAYMENT_COMPLETED", "payload");
+		OutboxEvent event = OutboxEvent.of(AggregateType.ORDER, 1L, EventType.PAYMENT_COMPLETION_GIVE_POINT, "payload");
 		when(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING))
 			.thenReturn(List.of(event));
 

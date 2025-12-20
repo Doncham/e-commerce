@@ -20,4 +20,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 	Optional<Payment> findByIdForUpdate(@Param("paymentId") Long paymentId);
 
 	Optional<Payment> findByOrderIdAndIdempotencyKey(Long orderId, String idempotencyKey);
+
+	Long countByOrderIdAndIdempotencyKey(Long orderId, String idempotencyKey);
 }

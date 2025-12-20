@@ -5,4 +5,5 @@ public interface PaymentPort {
 	Payment loadLastSuccessPaymentByOrderId(Long orderId, PaymentStatus status);
 	Payment saveAndFlush(Payment payment);
 	Payment loadForUpdate(Long paymentId);
+	Long countByOrderIdAndIdempotencyKey(Long orderId, String idempotencyKey);
 }

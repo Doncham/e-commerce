@@ -9,6 +9,8 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.hhplus.be.server.application.point.PointCommandService;
+import kr.hhplus.be.server.domain.outbox.AggregateType;
+import kr.hhplus.be.server.domain.outbox.EventType;
 import kr.hhplus.be.server.domain.outbox.OutboxEvent;
 import kr.hhplus.be.server.domain.outbox.OutboxStatus;
 import kr.hhplus.be.server.domain.outbox.PaymentCompletedPayload;
@@ -38,8 +40,8 @@ public class OutboxProcessor {
 	}
 
 	private void handleEvent(OutboxEvent event) throws JsonProcessingException {
-		if ("ORDER".equals(event.getAggregateType())
-		&& "PAYMENT_COMPLETED".equals(event.getEventType())) {
+		if (AggregateType.ORDER.equals(event.getAggregateType())
+		&& EventType.PAYMENT_COMPLETION_GIVE_POINT.equals(event.getEventType())) {
 			PaymentCompletedPayload payload = objectMapper.readValue(event.getPayload(),
 				PaymentCompletedPayload.class);
 
