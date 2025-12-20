@@ -8,6 +8,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cart.Cart;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
+import kr.hhplus.be.server.domain.coupon.Coupon;
+import kr.hhplus.be.server.domain.coupon.CouponType;
 import kr.hhplus.be.server.domain.inventory.Inventory;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.ShippingInfo;
@@ -207,5 +209,20 @@ public final class TestFixture {
 		Payment p = Payment.createPayment(order, idemKey(), amount);
 		p.paymentFailed(pgTxId(), reason);
 		return p;
+	}
+
+	// ==== coupon ====
+	public static Coupon percent10CouponForOneUser() {
+		return Coupon.createCoupon(
+			"P10-" + UUID.randomUUID(),
+			"10% 할인",
+			CouponType.PERCENT,
+			10L,
+			0L,
+			1L,
+			1L,
+			LocalDateTime.now().minusDays(1),
+			LocalDateTime.now().plusDays(30)
+		);
 	}
 }

@@ -9,4 +9,6 @@ import kr.hhplus.be.server.domain.usercoupon.UserCoupon;
 public interface UserCouponRepository extends JpaRepository<UserCoupon, Long> {
 	// 수량 조회
 	Long countAllByUserIdAndCouponId(Long userId, Long couponId);
+
+	Long countByCouponId(Long couponId);
 }
