@@ -1,0 +1,64 @@
+package kr.hhplus.be.server.domain.inventory;
+
+import java.time.LocalDateTime;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import kr.hhplus.be.server.entity.BaseTimeEntity;
+import kr.hhplus.be.server.domain.product.Product;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+@Entity
+@NoArgsConstructor
+@Getter
+public class Inventory extends BaseTimeEntity {
+	@Id
+	@GeneratedValue(strategy = GenerationType.AUTO)
+	private Long id;
+
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	// unique 제약 조건 설정
+	@JoinColumn(name = "product_id", nullable = false, unique = true)
+	private Product product;
+	@Column(nullable = false)
+	private Long stock;
+	@Column(nullable = false)
+	private Long reserved;
+	@Column(name = "deleted_at")
+	private LocalDateTime deletedAt;
+
+
+	private Inventory(Product product, Long stock) {
+		this.product = product;
+		this.stock = stock;
+		this.reserved = 0L;
+	}
+
+	public static Inventory of(Product product, Long stock) {
+		return new Inventory(product, stock);
+	}
+
+	public long availableStock() {
+		return Math.max(stock - reserved, 0);
+	}
+
+	public void reserveStock(long qty) {
+		this.reserved += qty;
+	}
+
+	public void releaseReserve(Long qty) {
+		reserved -= qty;
+	}
+
+	public void confirmReserve(Long qty) {
+		reserved -= qty;
+		stock -= qty;
+	}
+}

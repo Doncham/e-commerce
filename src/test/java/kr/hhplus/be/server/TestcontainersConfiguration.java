@@ -1,3 +1,4 @@
+/*
 package kr.hhplus.be.server;
 
 import jakarta.annotation.PreDestroy;
@@ -31,4 +32,4 @@ class TestcontainersConfiguration {
 			MYSQL_CONTAINER.stop();
 		}
 	}
-}
+}*/

@@ -10,4 +10,17 @@ public enum ErrorCode {
 	PAY_AMOUNT_MISMATCH, // 결제 금액 불일치
 	NOT_FOUND_ORDER, // 주문 없음
 	POINT_AMOUNT_NOT_VALID,
+	NOT_FOUND_COUPON, // 쿠폰 없음
+	EXPIRED_COUPON, // 쿠폰 만료
+	COUPON_FOR_USER_LIMIT_EXCEED, // 특정 유저의 쿠폰 발급 한도 초과
+	COUPON_ISSUE_LIMIT_EXCEED, // 쿠폰 발급 한도 초과
+	NOT_FOUND_POINT, // 포인트 없음
+	NEGATIVE_POINT_USE, // 음수 포인트 사용
+	NOT_FOUND_POINT_CHARGE, // 포인트충전 없음
+	NOT_FOUNT_PAYMENT,
+	ALREADY_PAID_PAYMENT, // 이미 결제됨
+	ALREADY_PAID_ORDER, // 이미 결제됨
+	NOT_FOUND_POINT_RESERVATION,
+
+
 }
