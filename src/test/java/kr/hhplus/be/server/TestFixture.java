@@ -15,6 +15,7 @@ import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.ShippingInfo;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.payment.Payment;
+import kr.hhplus.be.server.domain.point.Point;
 import kr.hhplus.be.server.domain.product.Product;
 import kr.hhplus.be.server.domain.user.User;
 
@@ -50,6 +51,11 @@ public final class TestFixture {
 	public static User user() {
 		long n = next();
 		return User.create("user" + n + "@test.com", "user" + n);
+	}
+
+	// ==== Point ====
+	public static Point point(Long userId) {
+		return Point.createPoint(userId);
 	}
 
 	public static User user(String email, String name) {
@@ -212,14 +218,14 @@ public final class TestFixture {
 	}
 
 	// ==== coupon ====
-	public static Coupon percent10CouponForOneUser() {
+	public static Coupon percent10CouponForOneUser(Long issueLimit) {
 		return Coupon.createCoupon(
 			"P10-" + UUID.randomUUID(),
 			"10% 할인",
 			CouponType.PERCENT,
 			10L,
 			0L,
-			1L,
+			issueLimit,
 			1L,
 			LocalDateTime.now().minusDays(1),
 			LocalDateTime.now().plusDays(30)
