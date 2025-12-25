@@ -51,6 +51,9 @@ dependencies {
 	testImplementation("org.testcontainers:junit-jupiter")
 	testImplementation("org.testcontainers:mysql")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+	// Retry
+	implementation("org.springframework.retry:spring-retry")
 }
 
 tasks.withType<Test> {

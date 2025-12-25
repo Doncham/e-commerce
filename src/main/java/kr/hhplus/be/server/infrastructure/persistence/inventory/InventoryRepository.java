@@ -19,7 +19,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 	Optional<Inventory> findByProductId(Long productId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
-	@QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "3000"))
+	@QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "200"))
 	@Query("""
 		select i 
 		from Inventory i
@@ -29,6 +29,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 	List<Inventory> findByProductIdInForUpdate(@Param("productIds") List<Long> productsIds);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "200"))
 	@Query("""
 		select i
 		from Inventory i

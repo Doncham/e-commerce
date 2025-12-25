@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +17,10 @@ import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.application.order.OrderPort;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
+import kr.hhplus.be.server.domain.coupon.exception.CouponExpiredException;
+import kr.hhplus.be.server.domain.coupon.exception.InsufficientCouponStockException;
+import kr.hhplus.be.server.domain.coupon.exception.NotFoundCoupon;
+import kr.hhplus.be.server.domain.coupon.exception.UserCouponLimitExceededException;
 import kr.hhplus.be.server.domain.inventory.Inventory;
 import kr.hhplus.be.server.domain.outbox.AggregateType;
 import kr.hhplus.be.server.domain.outbox.EventType;
@@ -70,6 +76,21 @@ public class PaymentCommandService {
 	}
 
 	@Transactional
+	@Retryable(
+		retryFor = {
+			org.springframework.dao.CannotAcquireLockException.class,
+			org.springframework.dao.PessimisticLockingFailureException.class,
+		},
+		noRetryFor = {
+			InsufficientCouponStockException.class,
+			CouponExpiredException.class,
+			UserCouponLimitExceededException.class,
+			NotFoundCoupon.class
+		},
+		maxAttempts = 3,
+		backoff = @Backoff(delay = 50, multiplier = 2.0, random = true),
+		exceptionExpression = "@lockRetryPolicy.isMySqlLockWaitTimeout(#root)"
+	)
 	public PayResponse completePayment(Long paymentId, PaymentGatewayResponse pgResp) {
 		Payment payment = paymentPort.loadForUpdate(paymentId);
 		// order 상태를 변경할거니까 락을 걸어서 조회하는건가?
