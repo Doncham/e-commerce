@@ -1,16 +1,17 @@
 package kr.hhplus.be.server.application.outbox;
 
-import static org.junit.Assert.*;
 import static org.mockito.Mockito.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,58 +34,37 @@ class OutboxProcessorTest {
 	private OutboxEventRepository outboxEventRepository;
 	@Mock
 	private ObjectMapper objectMapper;
+	@Mock
+	private SingleOutboxProcessService processOutboxService;
 
 
 	@Test
 	void givenOutboxEventList_whenProcessOutbox_thenEventStatusBecomeProcessed() throws JsonProcessingException {
+		// given
 		Long userId = 1L;
-
 		OutboxEvent event1 = OutboxEvent.of(
 			AggregateType.ORDER, 1L, EventType.PAYMENT_COMPLETION_GIVE_POINT, "payload");
 		OutboxEvent event2 = OutboxEvent.of(
 			AggregateType.ORDER, 2L, EventType.PAYMENT_COMPLETION_GIVE_POINT, "payload");
-
-		// given
+		ReflectionTestUtils.setField(event1, "id", 1L);
+		ReflectionTestUtils.setField(event2, "id", 2L);
 		List<OutboxEvent> outboxEvents = List.of(event1, event2);
 
-		when(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING))
+		when(outboxEventRepository.findByStatusOrderByIdAsc(
+			any(OutboxStatus.class),
+			any(LocalDateTime.class),
+			any(PageRequest.class)))
 			.thenReturn(outboxEvents);
 
 		PaymentCompletedPayload payload1 = PaymentCompletedPayload.of(userId, 1L, 2500L, "tx1");
 		PaymentCompletedPayload payload2 = PaymentCompletedPayload.of(userId, 2L, 2500L, "tx2");
 
-		when(objectMapper.readValue(anyString(), eq(PaymentCompletedPayload.class))).thenReturn(payload1)
-			.thenReturn(payload2);
 
 		// when
 		outboxProcessor.processOutbox();
 
 		// then
-		Assertions.assertEquals(OutboxStatus.PROCESSED, event1.getStatus());
-		Assertions.assertEquals(OutboxStatus.PROCESSED, event2.getStatus());
-		verify(pointService, times(2))
-			.earnForOrder(anyLong(), anyLong(), anyLong());
-
+		verify(processOutboxService, times(2)).processOne(anyLong());
 	}
 
-	@Test
-	void givenPointServiceFailure_whenProcessOutbox_thenEventStatusBecomeFailed() throws Exception {
-		// given
-		OutboxEvent event = OutboxEvent.of(AggregateType.ORDER, 1L, EventType.PAYMENT_COMPLETION_GIVE_POINT, "payload");
-		when(outboxEventRepository.findTop100ByStatusOrderByIdAsc(OutboxStatus.PENDING))
-			.thenReturn(List.of(event));
-
-		PaymentCompletedPayload payload = PaymentCompletedPayload.of(1L, 1L, 2500L, "tx1");
-		when(objectMapper.readValue(anyString(), eq(PaymentCompletedPayload.class)))
-			.thenReturn(payload);
-
-		doThrow(new RuntimeException("db error"))
-			.when(pointService).earnForOrder(1L, 1L, 2500L);
-
-		// when
-		outboxProcessor.processOutbox();
-
-		// then
-		assertEquals(OutboxStatus.FAILED, event.getStatus());
-	}
 }

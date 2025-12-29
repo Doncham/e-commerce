@@ -1,5 +1,7 @@
 package kr.hhplus.be.server.application.userCoupon;
 
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +24,21 @@ public class UserCouponService {
 	private final UserCouponRepository userCouponRepository;
 	private final CouponRepository couponRepository;
 	@Transactional
+	@Retryable(
+		retryFor = {
+			org.springframework.dao.CannotAcquireLockException.class,
+			org.springframework.dao.PessimisticLockingFailureException.class,
+		},
+		noRetryFor = {
+			InsufficientCouponStockException.class,
+			CouponExpiredException.class,
+			UserCouponLimitExceededException.class,
+			NotFoundCoupon.class
+		},
+		maxAttempts = 3,
+		backoff = @Backoff(delay = 50, multiplier = 2.0, random = true),
+		exceptionExpression = "@lockRetryPolicy.isMySqlLockWaitTimeout(#root)"
+	)
 	public UserCouponCreateResponse createUserCoupon(UserCouponCreateRequest request){
 		Long userId = request.getUserId();
 		Long couponId = request.getCouponId();
