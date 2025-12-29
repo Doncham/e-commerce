@@ -37,4 +37,12 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 		order by i.id
 	""")
 	List<Inventory> findByIdsForUpdate(@Param("invIds") List<Long> invIds);
+
+	@Query("""
+		select i 
+		from Inventory i
+		where i.product.id in :productIds
+		order by i.product.id asc
+	""")
+	List<Inventory> findByProductIdIn(@Param("productIds") List<Long> productsIds);
 }

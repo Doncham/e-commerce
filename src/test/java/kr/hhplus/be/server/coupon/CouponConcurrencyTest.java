@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.FixturePersist;
 import kr.hhplus.be.server.TestFixture;
@@ -30,6 +30,7 @@ import kr.hhplus.be.server.infrastructure.persistence.userCoupon.UserCouponRepos
 
 @SpringBootTest
 @AutoConfigureMockMvc
+//@Transactional
 public class CouponConcurrencyTest {
 	@Autowired
 	private UserRepository userRepo;
@@ -155,7 +156,7 @@ public class CouponConcurrencyTest {
 
 		// 검증
 		Coupon c = couponRepo.findById(coupon.getId()).get();
-		long issuedCouponCount = userCouponRepository.count();
+		long issuedCouponCount = userCouponRepository.countByCouponId(coupon.getId());
 		assertEquals(100, issuedCouponCount);
 		assertEquals(100, c.getIssuedCount());
 		assertEquals(100, success.get());

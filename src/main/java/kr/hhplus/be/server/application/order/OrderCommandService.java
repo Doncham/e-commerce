@@ -93,6 +93,7 @@ public class OrderCommandService implements OrderUseCase {
 		// 데드락 방지를 위해 정렬 후 락을 건다.
 		productsIds.sort(Long::compareTo);
 
+		//List<Inventory> inventories = inventoryPort.findByProductIdInOrderByProductId(productsIds);
 		List<Inventory> inventories = inventoryPort.findByProductIdInForUpdateOrderByProductId(productsIds);
 		// <productId, Inventory> 맵 생성
 		Map<Long, Inventory> inventoryMap = inventories.stream()

@@ -17,4 +17,9 @@ public class InventoryJpaAdapter implements InventoryPort {
 	public List<Inventory> findByProductIdInForUpdateOrderByProductId(List<Long> productIds) {
 		return inventoryRepository.findByProductIdInForUpdate(productIds);
 	}
+
+	@Override
+	public List<Inventory> findByProductIdInOrderByProductId(List<Long> productIds) {
+		return inventoryRepository.findByProductIdIn(productIds);
+	}
 }
