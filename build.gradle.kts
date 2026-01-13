@@ -54,6 +54,10 @@ dependencies {
 
 	// Retry
 	implementation("org.springframework.retry:spring-retry")
+
+	// Redis
+	implementation("org.redisson:redisson-spring-boot-starter:3.42.0")
+
 }
 
 tasks.withType<Test> {

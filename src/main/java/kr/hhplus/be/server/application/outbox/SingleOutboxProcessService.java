@@ -2,6 +2,8 @@ package kr.hhplus.be.server.application.outbox;
 
 import static kr.hhplus.be.server.domain.outbox.OutboxEvent.*;
 
+import java.util.ArrayList;
+
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
