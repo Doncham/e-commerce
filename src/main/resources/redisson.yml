@@ -1,12 +1,10 @@
 singleServerConfig:
   address: "redis://127.0.0.1:6379"
 
-  password: "1234"
-
   # Redis DB index (기본 0)
   database: 0
 
-  connectionTimeout: 10000 # 연결 시도 제한 시간
+  connectTimeout: 10000 # 연결 시도 제한 시간
   timeout: 3000 # Redis 명령 응답 제한 시간
 
   # 실패 시 재시도

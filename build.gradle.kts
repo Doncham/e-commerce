@@ -58,6 +58,14 @@ dependencies {
 	// Redis
 	implementation("org.redisson:redisson-spring-boot-starter:3.42.0")
 
+	testImplementation ("org.testcontainers:junit-jupiter")
+	testImplementation ("org.testcontainers:testcontainers")
+
+
+}
+
+tasks.test {
+	systemProperty("spring.profiles.active", "test")
 }
 
 tasks.withType<Test> {

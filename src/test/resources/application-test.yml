@@ -1,0 +1,11 @@
+app:
+  redisson:
+    enabled: false
+    mode: property
+
+
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.redisson.spring.starter.RedissonAutoConfigurationV2
