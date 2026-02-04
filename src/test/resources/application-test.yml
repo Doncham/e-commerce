@@ -1,11 +1,19 @@
-app:
-  redisson:
-    enabled: false
-    mode: property
-
-
+#app:
+#  redisson:
+#    enabled: false
+#    mode: property
+#
+#
+#
+#spring:
+#  autoconfigure:
+#    exclude:
+#      - org.redisson.spring.starter.RedissonAutoConfigurationV2
 
 spring:
-  autoconfigure:
-    exclude:
-      - org.redisson.spring.starter.RedissonAutoConfigurationV2
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 3s
+      database: 15

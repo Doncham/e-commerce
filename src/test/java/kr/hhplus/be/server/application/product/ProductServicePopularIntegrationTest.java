@@ -1,12 +1,21 @@
 package kr.hhplus.be.server.application.product;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.BDDMockito.*;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.TimeUnit;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,15 +35,41 @@ import kr.hhplus.be.server.infrastructure.persistence.user.UserRepository;
 
 @SpringBootTest
 @Transactional
+@ActiveProfiles("test")
 class ProductServicePopularIntegrationTest {
 
 	@Autowired ProductService productService;
-
 	@Autowired UserRepository userRepository;
 	@Autowired AddressRepository addressRepository;
 	@Autowired ProductRepository productRepository;
 	@Autowired OrderRepository orderRepository;
 	@Autowired OrderProductRepository orderProductRepository;
+	@Autowired StringRedisTemplate redisTemplate;
+
+	// ✅ Redis/Redisson 의존 제거 (DB 통합 테스트 안정화)
+	@MockitoBean
+	StringRedisTemplate stringRedisTemplate;
+	@MockitoBean
+	RedissonClient redissonClient;
+	// ✅ getPopulars 내부에서 필요한 하위 mock들
+	@MockitoBean
+	RLock rLock;
+	@MockitoBean
+	ValueOperations<String, String> valueOps;
+	@BeforeEach
+	void setUpCacheAndLockMocks() throws Exception {
+		// 캐시: 항상 miss
+		given(stringRedisTemplate.opsForValue()).willReturn(valueOps);
+		given(valueOps.get(anyString())).willReturn(null);
+		// set은 호출돼도 무시
+		willDoNothing().given(valueOps).set(anyString(), anyString(), any());
+		// 락: 항상 획득 성공 (락 경합 없이 DB 조회 흐름 타게)
+		given(redissonClient.getLock(anyString())).willReturn(rLock);
+		given(rLock.tryLock(anyLong(), anyLong(), any(TimeUnit.class))).willReturn(true);
+		willDoNothing().given(rLock).unlock();
+		System.out.println("log: " + stringRedisTemplate.getClass());
+	}
+
 
 	@Test
 	void getPopulars_SEVEN_returnsRankedItems_forPaidOrders() {
@@ -43,42 +78,31 @@ class ProductServicePopularIntegrationTest {
 		Address address = addressRepository.save(TestFixture.address(user));
 		ShippingInfo shippingInfo = TestFixture.shippingFrom(address);
 
-		// given: products (저장해서 id 확보)
+		// given: products
 		Product p1 = productRepository.save(TestFixture.product("AAA", 10_000L));
 		Product p2 = productRepository.save(TestFixture.product("BBB", 20_000L));
 		Product p3 = productRepository.save(TestFixture.product("CCC", 30_000L));
 
-		// given: order1(PAID) - p1 qty 5, p2 qty 1
+		// order1(PAID) - p1 qty 5, p2 qty 1
 		Order o1 = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
 		o1.paid();
 		orderRepository.save(o1);
 
-		OrderProduct o1p1 = TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 5);
-		o1p1.initOrder(o1);
-		orderProductRepository.save(o1p1);
+		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 5), o1));
+		orderProductRepository.save(withOrder(TestFixture.orderProduct(p2.getId(), p2.getName(), p2.getPrice(), 1), o1));
 
-		OrderProduct o1p2 = TestFixture.orderProduct(p2.getId(), p2.getName(), p2.getPrice(), 1);
-		o1p2.initOrder(o1);
-		orderProductRepository.save(o1p2);
-
-		// given: order2(PAID) - p1 qty 2, p3 qty 10
+		// order2(PAID) - p1 qty 2, p3 qty 10
 		Order o2 = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
 		o2.paid();
 		orderRepository.save(o2);
 
-		OrderProduct o2p1 = TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 2);
-		o2p1.initOrder(o2);
-		orderProductRepository.save(o2p1);
-
-		OrderProduct o2p3 = TestFixture.orderProduct(p3.getId(), p3.getName(), p3.getPrice(), 10);
-		o2p3.initOrder(o2);
-		orderProductRepository.save(o2p3);
+		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 2), o2));
+		orderProductRepository.save(withOrder(TestFixture.orderProduct(p3.getId(), p3.getName(), p3.getPrice(), 10), o2));
 
 		// when
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
 
-		// then: soldQty 합산 기준으로 랭킹 확인
-		// p3: 10, p1: 7, p2: 1
+		// then: p3(10), p1(7), p2(1)
 		assertThat(res).isNotNull();
 		assertThat(res.getItems()).hasSize(3);
 
@@ -107,36 +131,28 @@ class ProductServicePopularIntegrationTest {
 
 		Product p1 = productRepository.save(TestFixture.product("AAA", 10_000L));
 
-		// PAID 주문 하나
+		// PAID 주문
 		Order paid = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
 		paid.paid();
 		orderRepository.save(paid);
 
-		OrderProduct paidItem = TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 3);
-		paidItem.initOrder(paid);
-		orderProductRepository.save(paidItem);
+		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 3), paid));
 
-		// NOT PAID 주문 하나 (예: CREATED)
+		// NOT PAID(=DRAFT/CREATED) 주문
 		Order created = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
 		orderRepository.save(created);
 
-		OrderProduct createdItem = TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 999);
-		createdItem.initOrder(created);
-		orderProductRepository.save(createdItem);
+		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 999), created));
 
 		// when
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
 
-		// then: NOT PAID는 제외되어 qty=3만 집계
+		// then: PAID(3)만 반영
 		assertThat(res.getItems()).hasSize(1);
 		assertThat(res.getItems().get(0).getProductId()).isEqualTo(p1.getId());
 		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(3);
 	}
 
-	/**
-	 * 선택: createdAt 범위 제외 테스트를 하고 싶으면 Reflection으로 createdAt을 옮기는 방식.
-	 * 프로젝트에서 BaseTimeEntity createdAt이 final/접근 제약이 강하면 실패할 수 있음.
-	 */
 	@Test
 	void getPopulars_excludesOrdersOutOfRange_whenCreatedAtManipulated() {
 		// given
@@ -152,32 +168,32 @@ class ProductServicePopularIntegrationTest {
 		forceCreatedAt(inRange, LocalDateTime.now().minusDays(1));
 		orderRepository.save(inRange);
 
-		OrderProduct inItem = TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 2);
-		inItem.initOrder(inRange);
-		orderProductRepository.save(inItem);
+		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 2), inRange));
 
-		// 범위 밖 주문
+		// 범위 밖 주문(40일 전)
 		Order outRange = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
 		outRange.paid();
 		forceCreatedAt(outRange, LocalDateTime.now().minusDays(40));
 		orderRepository.save(outRange);
 
-		OrderProduct outItem = TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 100);
-		outItem.initOrder(outRange);
-		orderProductRepository.save(outItem);
+		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 100), outRange));
 
 		// when
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
 
-		// then: out-of-range(40일 전)는 제외되어 qty=2만 남아야 함
+		// then: qty=2만
 		assertThat(res.getItems()).hasSize(1);
 		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(2);
 	}
 
 	// ===== Helpers =====
+	private OrderProduct withOrder(OrderProduct op, Order order) {
+		op.initOrder(order);
+		return op;
+	}
+
 	private void forceCreatedAt(Order order, LocalDateTime createdAt) {
-		// createdAt 필드명이 BaseTimeEntity에 있을 가능성이 큼.
-		// 이름이 "createdAt"이 아니라면 프로젝트 실제 필드명에 맞게 바꿔야 함.
 		ReflectionTestUtils.setField(order, "createdAt", createdAt);
+		ReflectionTestUtils.setField(order, "updatedAt", createdAt);
 	}
 }

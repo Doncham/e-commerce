@@ -5,19 +5,21 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.test.context.ActiveProfiles;
 
 import kr.hhplus.be.server.FixturePersist;
-import kr.hhplus.be.server.RedisIntegrationTestBase;
 import kr.hhplus.be.server.TestFixture;
 import kr.hhplus.be.server.api.usercoupon.request.UserCouponCreateRequest;
 import kr.hhplus.be.server.api.usercoupon.response.UserCouponCreateResponse;
@@ -28,8 +30,8 @@ import kr.hhplus.be.server.domain.user.User;
 import kr.hhplus.be.server.infrastructure.persistence.coupon.CouponRepository;
 import kr.hhplus.be.server.infrastructure.persistence.user.UserRepository;
 import kr.hhplus.be.server.infrastructure.persistence.userCoupon.UserCouponRepository;
-
-public class CouponDistributedLockTest extends RedisIntegrationTestBase {
+@SpringBootTest
+public class CouponDistributedLockTest {
 
 	@Autowired UserRepository userRepo;
 	@Autowired CouponRepository couponRepo;

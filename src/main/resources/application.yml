@@ -21,6 +21,7 @@ spring:
       host: localhost
       port: 6379
       timeout: 3s
+      database: 0
   redis:
     redisson:
       mode: file

@@ -91,7 +91,7 @@ public class ProductService {
 		boolean locked = false;
 
 		try {
-			 locked = lock.tryLock(LOCK_WAIT_MS, LOCK_LEASE_MS, TimeUnit.MICROSECONDS);
+			 locked = lock.tryLock(LOCK_WAIT_MS, LOCK_LEASE_MS, TimeUnit.MILLISECONDS);
 			 if(locked) {
 				 // 3) 락을 얻은 후에 다시 캐시 확인(더블 체크)
 				 PopularProductsResponse cache2 = getCache(cacheKey);
