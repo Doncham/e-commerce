@@ -37,3 +37,9 @@ out/
 .vscode/
 
 data
+
+summary.json
+
+ecdb.sql
+
+summary-cache.json

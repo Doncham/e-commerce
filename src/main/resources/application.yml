@@ -10,9 +10,23 @@ spring:
   jpa:
     show-sql: false
     hibernate:
-      ddl-auto: create
+      ddl-auto: none
     properties:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.MySQL8Dialect
     defer-datasource-initialization: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 3s
+      database: 0
+  redis:
+    redisson:
+      mode: file
+      file: classpath:redisson.yml
+
+app:
+  redisson:
+    enabled: true

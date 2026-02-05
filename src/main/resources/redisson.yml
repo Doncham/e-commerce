@@ -1,0 +1,32 @@
+singleServerConfig:
+  address: "redis://127.0.0.1:6379"
+
+  # Redis DB index (기본 0)
+  database: 0
+
+  connectTimeout: 10000 # 연결 시도 제한 시간
+  timeout: 3000 # Redis 명령 응답 제한 시간
+
+  # 실패 시 재시도
+  retryAttempts: 3
+  retryInterval: 1500 # ms
+
+  # 커넥션 풀 (일반 Redis 명령용)
+  connectionPoolSize: 64
+  connectionMinimumIdleSize: 8
+
+  # Pub/Sub 커넥션 풀 (락 대기 알림용)
+  # 락을 많이 쓰면 중요해짐
+  subscriptionConnectionPoolSize: 50
+  subscriptionConnectionMinimumIdleSize: 1
+  subscriptionsPerConnection: 5
+
+# Redisson 내부 스레드 설정 (너무 공격적으로 키울 필요 없음)
+threads: 16
+nettyThreads: 32
+transportMode: "NIO"
+
+# lock watchdog timeout (ms)
+# lock() / tryLock(waitTime) 처럼 leaseTime을 직접 주지 않는 경우,
+# Redisson이 자동으로 TTL 연장해주는 watchdog의 기준 시간
+lockWatchdogTimeout: 30000

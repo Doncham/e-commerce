@@ -19,6 +19,7 @@ import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.application.order.OrderPort;
 import kr.hhplus.be.server.application.payment.PaymentCommandService;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
+import kr.hhplus.be.server.application.product.ProductService;
 import kr.hhplus.be.server.domain.inventory.Inventory;
 import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
 import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservation;
@@ -48,14 +49,16 @@ class PaymentCommandServiceTest {
 	private OutboxEventRepository outboxEventRepository;
 	@Mock
 	private ObjectMapper objectMapper;
-
 	@Mock
 	private InventoryReserveRepository invReserveRepo;
 	@Mock
 	private InventoryRepository invRepo;
-
 	@Mock
 	private ShippingInfo shippingInfo;
+	@Mock
+	private ProductService productService;
+
+
 
 	private Order makeCreatedOrder(Long orderId, String idemKey, long payAmount) {
 		var user = mock(kr.hhplus.be.server.domain.user.User.class);

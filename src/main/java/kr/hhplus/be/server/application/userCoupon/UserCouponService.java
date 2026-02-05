@@ -42,6 +42,7 @@ public class UserCouponService {
 	public UserCouponCreateResponse createUserCoupon(UserCouponCreateRequest request){
 		Long userId = request.getUserId();
 		Long couponId = request.getCouponId();
+		// 분산락을 사용해도 최종 정합성은 DB에서 관리한다.(DB락)
 		Coupon coupon = couponRepository.findByIdForUpdate(couponId)
 			.orElseThrow(() -> new NotFoundCoupon(ErrorCode.NOT_FOUND_COUPON, couponId));
 		Long issuedCountForThisUser = userCouponRepository.countAllByUserIdAndCouponId(userId, couponId);

@@ -14,6 +14,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
@@ -34,7 +35,10 @@ import lombok.NoArgsConstructor;
 	uniqueConstraints = @UniqueConstraint(
 		name = "ux_userid_and_idempotencyKey",
 		columnNames = {"user_id", "idempotency_key"}
-	)
+	),
+	indexes = {
+		@Index(name = "ix_orders_created_at", columnList = "created_at")
+	}
 )
 public class Order extends BaseTimeEntity {
 	@Id

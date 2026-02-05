@@ -17,6 +17,7 @@ import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.application.order.OrderPort;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
+import kr.hhplus.be.server.application.product.ProductService;
 import kr.hhplus.be.server.domain.coupon.exception.CouponExpiredException;
 import kr.hhplus.be.server.domain.coupon.exception.InsufficientCouponStockException;
 import kr.hhplus.be.server.domain.coupon.exception.NotFoundCoupon;
@@ -59,6 +60,7 @@ public class PaymentCommandService {
 	private final InventoryRepository invRepo;
 	private final PointRepository pointRepo;
 	private final PointReservationRepository pointReservationRepo;
+	private final ProductService productService;
 
 	@Transactional
 	public PaymentAttempt preparePayment(Long orderId, String idemKey) {
@@ -133,6 +135,7 @@ public class PaymentCommandService {
 
 
 			order.failed();
+			productService.evictPopularCacheAllRanges();
 			return PayResponse.of(order, payment);
 		}
 	}
