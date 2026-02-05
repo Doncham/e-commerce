@@ -3,8 +3,8 @@ import { check, sleep } from "k6";
 
 export const options = {
     stages: [
-        { duration: "30s", target: 300 },  // ramp-up
-        { duration: "1m",  target: 300 },  // steady
+        { duration: "30s", target: 100 },  // ramp-up
+        { duration: "1m",  target: 100 },  // steady
         { duration: "30s", target: 0 },   // ramp-down
     ],
     thresholds: {
@@ -15,9 +15,11 @@ export const options = {
 
 const BASE_URL = __ENV.BASE_URL || "http://host.docker.internal:8080";
 const RANGES = ["SEVEN", "THIRTY"];
-const range = RANGES[Math.random() < 0.8 ? 0 : 1];
+// 와 이거 시나리오내내 고정된 값 사용
+// const range = RANGES[Math.random() < 0.8 ? 0 : 1];
 
 export default function () {
+    const range = RANGES[Math.random() < 0.8 ? 0 : 1];
     const url = `${BASE_URL}/api/v1/product/popular?range=${range}`;
 
     const res = http.get(url, {

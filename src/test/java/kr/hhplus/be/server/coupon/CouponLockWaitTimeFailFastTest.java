@@ -2,20 +2,25 @@ package kr.hhplus.be.server.coupon;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.test.context.TestPropertySource;
+import org.springframework.core.env.Environment;
 
 import kr.hhplus.be.server.FixturePersist;
-import kr.hhplus.be.server.RedisIntegrationTestBase;
 import kr.hhplus.be.server.TestFixture;
 import kr.hhplus.be.server.api.usercoupon.request.UserCouponCreateRequest;
 import kr.hhplus.be.server.application.userCoupon.CouponLockExecutor;
@@ -23,21 +28,19 @@ import kr.hhplus.be.server.application.userCoupon.UserCouponFacade;
 import kr.hhplus.be.server.domain.coupon.Coupon;
 import kr.hhplus.be.server.domain.user.User;
 import kr.hhplus.be.server.domain.usercoupon.exception.CouponIssueBusyException;
+import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.infrastructure.persistence.coupon.CouponRepository;
 import kr.hhplus.be.server.infrastructure.persistence.user.UserRepository;
 
-@TestPropertySource(properties = {
-	"test.lock.wait-ms=100",     // waitTime 100ms
-	"test.lock.lease-ms=3000",   // leaseTime 3s (테스트용)
-	"test.lock.hold-ms=300"      // 첫 스레드가 락을 300ms 잡고 있게
-})
-public class CouponLockWaitTimeFailFastTest extends RedisIntegrationTestBase {
+@SpringBootTest
+public class CouponLockWaitTimeFailFastTest {
 
 	@Autowired UserRepository userRepo;
 	@Autowired CouponRepository couponRepo;
 	@Autowired FixturePersist fixturePersist;
 
 	@Autowired UserCouponFacade userCouponFacade;
+	static CountDownLatch firstLockAcquired;
 
 	@Test
 	void waitTimeTooShort_shouldFailFastForSecondCaller() throws Exception {
@@ -51,6 +54,7 @@ public class CouponLockWaitTimeFailFastTest extends RedisIntegrationTestBase {
 
 		ExecutorService pool = Executors.newFixedThreadPool(2);
 		CountDownLatch start = new CountDownLatch(1);
+		firstLockAcquired = new CountDownLatch(1);
 
 		Future<?> f1 = pool.submit(() -> {
 			await(start);
@@ -59,6 +63,7 @@ public class CouponLockWaitTimeFailFastTest extends RedisIntegrationTestBase {
 
 		Future<?> f2 = pool.submit(() -> {
 			await(start);
+			await(firstLockAcquired);
 			userCouponFacade.createUserCoupons(r2); // 두 번째: waitTime 100ms라서 Busy 기대
 		});
 
@@ -92,11 +97,11 @@ public class CouponLockWaitTimeFailFastTest extends RedisIntegrationTestBase {
 		@Primary
 		CouponLockExecutor tunableRedissonLockExecutor(
 			RedissonClient redissonClient,
-			org.springframework.core.env.Environment env
+			Environment env
 		) {
 			long waitMs  = Long.parseLong(env.getProperty("test.lock.wait-ms", "100"));
 			long leaseMs = Long.parseLong(env.getProperty("test.lock.lease-ms", "3000"));
-			long holdMs  = Long.parseLong(env.getProperty("test.lock.hold-ms", "0"));
+			long holdMs  = Long.parseLong(env.getProperty("test.lock.hold-ms", "200"));
 			return new TunableRedissonCouponLockExecutor(redissonClient, waitMs, leaseMs, holdMs);
 		}
 	}
@@ -121,10 +126,15 @@ public class CouponLockWaitTimeFailFastTest extends RedisIntegrationTestBase {
 			try {
 				locked = lock.tryLock(waitMs, leaseMs, TimeUnit.MILLISECONDS);
 				if (!locked) {
-					throw new CouponIssueBusyException(kr.hhplus.be.server.exception.ErrorCode.COUPON_ISSUE_BUSY, couponId);
+					throw new CouponIssueBusyException(ErrorCode.COUPON_ISSUE_BUSY, couponId);
+				}
+				else {
+					// f1이 풀어줘야 f2가 들어옴. -> f1이 무조건 먼저 락을 잡는다.
+					firstLockAcquired.countDown();
 				}
 
 				// 첫 스레드가 락을 오래 잡고 있게 만들어 waitTime 효과를 확실히 드러냄
+				// f1이 holdMs를 길게 가져가는 동안 f2가 waitTime을 초과하게되고 CouponIssueBusyException가 발생한다.
 				if (holdMs > 0) sleepSilently(holdMs);
 
 				return body.get();

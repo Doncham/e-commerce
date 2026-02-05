@@ -67,7 +67,6 @@ class ProductServicePopularIntegrationTest {
 		given(redissonClient.getLock(anyString())).willReturn(rLock);
 		given(rLock.tryLock(anyLong(), anyLong(), any(TimeUnit.class))).willReturn(true);
 		willDoNothing().given(rLock).unlock();
-		System.out.println("log: " + stringRedisTemplate.getClass());
 	}
 
 
