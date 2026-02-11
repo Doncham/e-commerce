@@ -78,10 +78,6 @@ public class OutboxPopularIncrementIntegrationTest {
 		// then: redis score 검증
 		ZSetOperations<String, String> z = redisTemplate.opsForZSet();
 
-		// daily
-		String dailyKey = "rank:daily:20260210";
-		assertThat(z.score(dailyKey, "10")).isEqualTo(2.0);
-		assertThat(z.score(dailyKey, "20")).isEqualTo(5.0);
 
 		// 7d/30d를 실시간 증분하도록 구현했다는 전제
 		assertThat(z.score("rank:7d", "10")).isEqualTo(2.0);
@@ -118,7 +114,6 @@ public class OutboxPopularIncrementIntegrationTest {
 
 		// then: redis score가 2번 반영되었는지 확인(멱등 장치가 없다면 4가 됨)
 		ZSetOperations<String, String> z = redisTemplate.opsForZSet();
-		assertThat(z.score("rank:daily:20260210", "10")).isEqualTo(4.0);
 
 		// 7d/30d도 실시간 증분이면 같이 2번 반영
 		assertThat(z.score("rank:7d", "10")).isEqualTo(4.0);

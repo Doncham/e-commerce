@@ -43,16 +43,10 @@ public class OutboxBusinessTxService {
 			// 이 작업 후 장애 발생 시 redis 증분이 여러번 집계될 수 있다.
 			// 00:00시에 동작하는 배치를 통해 최종적인 정합성을 맞출 계획.
 			for (PopularProductIncrementPayload.Item item : payload.getItems()) {
-				popularRankPort.incrementDaily(payload.getYyyymmdd(), item.getProductId(), item.getQty());
-
 				popularRankPort.increment7d(item.getProductId(), item.getQty());
 				popularRankPort.increment30d(item.getProductId(), item.getQty());
 			}
-
-			event.markProcessed();
 		}
-
-		// 나중에 쿠폰, 재고 등 다른 이벤트도 여기에서 분기 처리 가능
 
 		event.markProcessed();
 
