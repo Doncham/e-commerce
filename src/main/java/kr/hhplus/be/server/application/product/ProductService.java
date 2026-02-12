@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -15,6 +16,7 @@ import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,29 +43,16 @@ public class ProductService {
 	// 재고 상태를 클라이언트에 보여주는 기준
 	private static final int LOW_STOCK_THRESHOLD = 10;
 	private static final int POPULAR_PRODUCT_LIMIT = 20;
-	// 이런 클래스가 있네?
-	private static final Duration POPULAR_CACHE_TTL = Duration.ofSeconds(120);
-	// waitTime: 락 기다릴 시간, leaseTime: 락 자동 해제 시간(너무 길지 않게)
-	private static final long LOCK_WAIT_MS = 200;   // 200ms만 기다리고 실패하면 fallback
-	private static final long LOCK_LEASE_MS = 2_000; // 2초 후 자동 해제(쿼리 시간 여유 고려)
-
-	// 락 실패 시 재시도(캐시가 곧 채워질 거라는 기대)
-	private static final int AFTER_LOCK_FAIL_RETRY = 3;
-	private static final long AFTER_LOCK_FAIL_SLEEP_MS = 50;
-
 
 	private final InventoryRepository inventoryRepository;
 	private final OrderProductRepository orderProductRepository;
 	private final ProductRepository productRepository;
 
 	private final StringRedisTemplate stringRedisTemplate;
-	private final ObjectMapper objectMapper;
-	private final RedissonClient redissonClient;
 
 	@Transactional(readOnly = true)
 	public ProductDetailResponse getProductDetail(long productId) {
 		// JWT 추가 후 유저 검증 추가
-
 		return inventoryRepository.findByProductId(productId).map(inventory -> {
 			Long availableStock = inventory.availableStock();
 			InventoryStatus inventoryStatus = InventoryStatus.from(availableStock, LOW_STOCK_THRESHOLD);
@@ -78,52 +67,51 @@ public class ProductService {
 
 	@Transactional(readOnly = true)
 	public PopularProductsResponse getPopulars(PopularDateRange range) {
-		String cacheKey = popularCacheKey(range);
-		String lockKey = popularLockKey(range);
+		String zsetKey = zsetKey(range);
 
-		// 1) 캐시 먼저 확인
-		PopularProductsResponse cached = getCache(cacheKey);
-		if (cached != null) return cached;
-
-		// 여기서부터는 cache가 없어서 DB에 직접 접근하는 부분
-		// 2) 분산 락으로 스탬피드 방지
-		RLock lock = redissonClient.getLock(lockKey);
-		boolean locked = false;
-
-		try {
-			 locked = lock.tryLock(LOCK_WAIT_MS, LOCK_LEASE_MS, TimeUnit.MILLISECONDS);
-			 if(locked) {
-				 // 3) 락을 얻은 후에 다시 캐시 확인(더블 체크)
-				 PopularProductsResponse cache2 = getCache(cacheKey);
-				 if(cache2 !=null) return cache2;
-
-				 // 4) DB 조회 후 캐시 set
-				 PopularProductsResponse fresh = queryPopularsFromDb(range);
-				 setCache(cacheKey, fresh, POPULAR_CACHE_TTL);
-				 return fresh;
-			 }
-			// 5) 락을 못 얻은 경우
-			// 다른 인스턴스가 갱신중일 확률이 높으니 짧게 기다렸다가 캐시 재조회
-			for(int i = 0; i < AFTER_LOCK_FAIL_RETRY; i++) {
-				sleepSilently(AFTER_LOCK_FAIL_SLEEP_MS);
-				PopularProductsResponse retry = getCache(cacheKey);
-				if(retry != null)
-					return retry;
-			}
-
-			// 6) 이래도 캐시가 없으면 fallback: DB 조회
+		Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
+			.reverseRangeWithScores(zsetKey, 0, POPULAR_PRODUCT_LIMIT - 1);
+		if(tuples == null || tuples.isEmpty()) {
+			// fallback: 배치 전이나 비어있으면 DB 집계해서 반환해줌.
 			return queryPopularsFromDb(range);
-
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			// 인터럽트 발생 시에도 fallback로 DB 조회 혹은 빈값 반환 중 선택
-			return queryPopularsFromDb(range);
-		} finally {
-			if (locked) {
-				// 락 소유자만 unlockㅖ
-				lock.unlock();
-			}
 		}
+
+		// 2) productId 리스트 추출 + score(판매량) 맵 만들기
+		List<Long> productIds = new ArrayList<>(tuples.size());
+		Map<Long, Long> soldQtyMap = new HashMap<>(tuples.size());
+
+		for (ZSetOperations.TypedTuple<String> t : tuples) {
+			if (t.getValue() == null || t.getScore() == null) continue;
+			long productId = Long.parseLong(t.getValue());
+			long soldQty = t.getScore().longValue(); // score=double -> long으로 변환(정수 집계라는 전제)
+			productIds.add(productId);
+			soldQtyMap.put(productId, soldQty);
+		}
+
+		// 3) DB에서 상품 상세 조회
+		List<Product> products = productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(productIds);
+
+		Map<Long, Product> productMap = products.stream()
+			.collect(Collectors.toMap(Product::getId, p -> p));
+
+		// 4) 응답 DTO 구성 (ZSET 순서대로 rank 부여)
+		List<PopularProductItemResponse> items = new ArrayList<>();
+		int rank = 1;
+
+		for (Long productId : productIds) {
+			Product p = productMap.get(productId);
+			if (p == null) continue;
+
+			items.add(new PopularProductItemResponse(
+				rank++,
+				p.getId(),
+				p.getName(),
+				p.getPrice(),
+				soldQtyMap.getOrDefault(productId, 0L)
+			));
+		}
+
+		return new PopularProductsResponse(range.days() + "d", LocalDateTime.now(), items);
 
 	}
 	private PopularProductsResponse queryPopularsFromDb(PopularDateRange range) {
@@ -166,48 +154,11 @@ public class ProductService {
 		return new PopularProductsResponse(range.days() + "d", to, result);
 	}
 
-	private String popularCacheKey(PopularDateRange range) {
-		return "popular:" + range.name(); // popular:SEVEN
-	}
-
-	private String popularLockKey(PopularDateRange range) {
-		return "lock:popular:" + range.name(); // lock:popular:SEVEN
-	}
-	private PopularProductsResponse getCache(String key) {
-		String json = stringRedisTemplate.opsForValue().get(key);
-		if (json == null || json.isBlank()) return null;
-
-		try {
-			return objectMapper.readValue(json, PopularProductsResponse.class);
-		} catch (Exception e) {
-			// 역직렬화 실패하면 캐시가 깨진 것으로 간주하고 제거 + miss 처리
-			stringRedisTemplate.delete(key);
-			return null;
-		}
-	}
-
-	private void setCache(String key, PopularProductsResponse value, Duration ttl) {
-		try {
-			String json = objectMapper.writeValueAsString(value);
-			stringRedisTemplate.opsForValue().set(key, json, ttl);
-		} catch (JsonProcessingException e) {
-			// 직렬화 실패 시 캐시 저장 생략(조회는 DB 결과로 진행)
-			log.error("캐시 직렬화 실패");
-		}
-	}
-
-	private void sleepSilently(long ms) {
-		try {
-			Thread.sleep(ms);
-		} catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-		}
-	}
-
-	public void evictPopularCacheAllRanges() {
-		// 멀티 인스턴스에서도 Redis DEL이면 즉시 무효화됨
-		stringRedisTemplate.delete(popularCacheKey(PopularDateRange.SEVEN));
-		stringRedisTemplate.delete(popularCacheKey(PopularDateRange.THIRTY));
+	private String zsetKey(PopularDateRange range) {
+		return switch (range) {
+			case SEVEN -> "rank:zset:7d";
+			case THIRTY -> "rank:zset:30d";
+		};
 	}
 }
 

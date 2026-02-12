@@ -24,7 +24,7 @@ import lombok.RequiredArgsConstructor;
 public class PopularRankRebuildService {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 	// daily 키는 7/30 롤링용으로 넉넉히 40일 보관
-	private static final Duration WINDOW_TTL = Duration.ofHours(36);
+	private static final Duration WINDOW_TTL = Duration.ofDays(36);
 	private final Clock clock;
 	private final OrderProductRepository orderProductRepository;
 	private final PopularRankRedisWriter redisWriter;

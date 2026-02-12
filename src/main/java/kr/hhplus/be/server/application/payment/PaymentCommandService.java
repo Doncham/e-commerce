@@ -145,7 +145,6 @@ public class PaymentCommandService {
 
 
 			order.failed();
-			productService.evictPopularCacheAllRanges();
 			return PayResponse.of(order, payment);
 		}
 	}

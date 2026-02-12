@@ -19,6 +19,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
 import kr.hhplus.be.server.TestFixture;
 import kr.hhplus.be.server.api.product.response.PopularProductsResponse;
 import kr.hhplus.be.server.domain.address.Address;
@@ -34,164 +35,164 @@ import kr.hhplus.be.server.infrastructure.persistence.product.ProductRepository;
 import kr.hhplus.be.server.infrastructure.persistence.user.UserRepository;
 
 @SpringBootTest
-@Transactional
 @ActiveProfiles("test")
-class ProductServicePopularIntegrationTest {
+@Transactional
+class ProductServicePopularDbIntegrationTest {
 
 	@Autowired ProductService productService;
+
 	@Autowired UserRepository userRepository;
 	@Autowired AddressRepository addressRepository;
 	@Autowired ProductRepository productRepository;
 	@Autowired OrderRepository orderRepository;
 	@Autowired OrderProductRepository orderProductRepository;
-	@Autowired StringRedisTemplate redisTemplate;
 
-	// ✅ Redis/Redisson 의존 제거 (DB 통합 테스트 안정화)
-	@MockitoBean
-	StringRedisTemplate stringRedisTemplate;
-	@MockitoBean
-	RedissonClient redissonClient;
-	// ✅ getPopulars 내부에서 필요한 하위 mock들
-	@MockitoBean
-	RLock rLock;
-	@MockitoBean
-	ValueOperations<String, String> valueOps;
+	@Autowired
+	EntityManager em;
+
+	// ✅ 캐시/락을 "항상 DB 조회 경로로 강제"
+	// @MockitoBean StringRedisTemplate stringRedisTemplate;
+	// @MockitoBean ValueOperations<String, String> valueOps;
+	// @MockitoBean RedissonClient redissonClient;
+	// @MockitoBean RLock rLock;
+
 	@BeforeEach
-	void setUpCacheAndLockMocks() throws Exception {
-		// 캐시: 항상 miss
-		given(stringRedisTemplate.opsForValue()).willReturn(valueOps);
-		given(valueOps.get(anyString())).willReturn(null);
-		// set은 호출돼도 무시
-		willDoNothing().given(valueOps).set(anyString(), anyString(), any());
-		// 락: 항상 획득 성공 (락 경합 없이 DB 조회 흐름 타게)
-		given(redissonClient.getLock(anyString())).willReturn(rLock);
-		given(rLock.tryLock(anyLong(), anyLong(), any(TimeUnit.class))).willReturn(true);
-		willDoNothing().given(rLock).unlock();
+	void forceDbPath() throws Exception {
+
 	}
 
-
 	@Test
-	void getPopulars_SEVEN_returnsRankedItems_forPaidOrders() {
-		// given: user + address(ShippingInfo)
-		User user = userRepository.save(TestFixture.user());
-		Address address = addressRepository.save(TestFixture.address(user));
-		ShippingInfo shippingInfo = TestFixture.shippingFrom(address);
+	void sevenDays_ranksBySoldQty_onlyPaidOrders() {
+		// given
+		Given given = new Given().userAndShipping();
 
-		// given: products
-		Product p1 = productRepository.save(TestFixture.product("AAA", 10_000L));
-		Product p2 = productRepository.save(TestFixture.product("BBB", 20_000L));
-		Product p3 = productRepository.save(TestFixture.product("CCC", 30_000L));
+		Product p1 = given.product("AAA", 10_000L);
+		Product p2 = given.product("BBB", 20_000L);
+		Product p3 = given.product("CCC", 30_000L);
 
-		// order1(PAID) - p1 qty 5, p2 qty 1
-		Order o1 = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
-		o1.paid();
-		orderRepository.save(o1);
+		// o1: p1(5), p2(1)
+		Order o1 = given.paidOrderAt(LocalDateTime.now().minusDays(1));
+		given.orderItem(o1, p1, 5);
+		given.orderItem(o1, p2, 1);
 
-		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 5), o1));
-		orderProductRepository.save(withOrder(TestFixture.orderProduct(p2.getId(), p2.getName(), p2.getPrice(), 1), o1));
+		// o2: p1(2), p3(10)
+		Order o2 = given.paidOrderAt(LocalDateTime.now().minusDays(2));
+		given.orderItem(o2, p1, 2);
+		given.orderItem(o2, p3, 10);
 
-		// order2(PAID) - p1 qty 2, p3 qty 10
-		Order o2 = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
-		o2.paid();
-		orderRepository.save(o2);
-
-		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 2), o2));
-		orderProductRepository.save(withOrder(TestFixture.orderProduct(p3.getId(), p3.getName(), p3.getPrice(), 10), o2));
+		em.flush();
+		em.clear();
 
 		// when
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
 
 		// then: p3(10), p1(7), p2(1)
-		assertThat(res).isNotNull();
-		assertThat(res.getItems()).hasSize(3);
-
-		assertThat(res.getItems().get(0).getProductId()).isEqualTo(p3.getId());
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(10);
-		assertThat(res.getItems().get(0).getRank()).isEqualTo(1);
-
-		assertThat(res.getItems().get(1).getProductId()).isEqualTo(p1.getId());
-		assertThat(res.getItems().get(1).getSoldQty()).isEqualTo(7);
-		assertThat(res.getItems().get(1).getRank()).isEqualTo(2);
-
-		assertThat(res.getItems().get(2).getProductId()).isEqualTo(p2.getId());
-		assertThat(res.getItems().get(2).getSoldQty()).isEqualTo(1);
-		assertThat(res.getItems().get(2).getRank()).isEqualTo(3);
-
+		assertThat(res.getItems()).extracting("productId").containsExactly(p3.getId(), p1.getId(), p2.getId());
+		assertThat(res.getItems()).extracting("soldQty").containsExactly(10L, 7L, 1L);
+		assertThat(res.getItems()).extracting("rank").containsExactly(1, 2, 3);
 		assertThat(res.getRange()).isEqualTo("7d");
 		assertThat(res.getGeneratedAt()).isNotNull();
 	}
 
 	@Test
-	void getPopulars_excludesNotPaidOrders() {
+	void excludesNotPaidOrders() {
 		// given
-		User user = userRepository.save(TestFixture.user());
-		Address address = addressRepository.save(TestFixture.address(user));
-		ShippingInfo shippingInfo = TestFixture.shippingFrom(address);
+		Given given = new Given().userAndShipping();
+		Product p1 = given.product("AAA", 10_000L);
 
-		Product p1 = productRepository.save(TestFixture.product("AAA", 10_000L));
+		Order paid = given.paidOrderAt(LocalDateTime.now().minusDays(1));
+		given.orderItem(paid, p1, 3);
 
-		// PAID 주문
-		Order paid = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
-		paid.paid();
-		orderRepository.save(paid);
+		Order notPaid = given.notPaidOrderAt(LocalDateTime.now().minusDays(1));
+		given.orderItem(notPaid, p1, 999);
 
-		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 3), paid));
-
-		// NOT PAID(=DRAFT/CREATED) 주문
-		Order created = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
-		orderRepository.save(created);
-
-		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 999), created));
+		em.flush();
+		em.clear();
 
 		// when
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
 
-		// then: PAID(3)만 반영
+		// then
 		assertThat(res.getItems()).hasSize(1);
 		assertThat(res.getItems().get(0).getProductId()).isEqualTo(p1.getId());
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(3);
+		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(3L);
 	}
 
 	@Test
-	void getPopulars_excludesOrdersOutOfRange_whenCreatedAtManipulated() {
+	void excludesOutOfRangeOrders() {
 		// given
-		User user = userRepository.save(TestFixture.user());
-		Address address = addressRepository.save(TestFixture.address(user));
-		ShippingInfo shippingInfo = TestFixture.shippingFrom(address);
+		Given given = new Given().userAndShipping();
+		Product p1 = given.product("AAA", 10_000L);
 
-		Product p1 = productRepository.save(TestFixture.product("AAA", 10_000L));
+		Order inRange = given.paidOrderAt(LocalDateTime.now().minusDays(1));
+		given.orderItem(inRange, p1, 2);
 
-		// 범위 내 주문
-		Order inRange = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
-		inRange.paid();
-		forceCreatedAt(inRange, LocalDateTime.now().minusDays(1));
-		orderRepository.save(inRange);
+		// 40일 전 => 7d 범위 밖
+		Order outRange = given.paidOrderAt(LocalDateTime.now().minusDays(40));
+		given.orderItem(outRange, p1, 100);
 
-		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 2), inRange));
-
-		// 범위 밖 주문(40일 전)
-		Order outRange = orderRepository.save(TestFixture.draftOrder(user, shippingInfo));
-		outRange.paid();
-		forceCreatedAt(outRange, LocalDateTime.now().minusDays(40));
-		orderRepository.save(outRange);
-
-		orderProductRepository.save(withOrder(TestFixture.orderProduct(p1.getId(), p1.getName(), p1.getPrice(), 100), outRange));
+		em.flush();
+		em.clear();
 
 		// when
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
 
-		// then: qty=2만
+		// then
 		assertThat(res.getItems()).hasSize(1);
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(2);
+		assertThat(res.getItems().get(0).getProductId()).isEqualTo(p1.getId());
+		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(2L);
 	}
 
-	// ===== Helpers =====
-	private OrderProduct withOrder(OrderProduct op, Order order) {
-		op.initOrder(order);
-		return op;
+	// =========================
+	// Given DSL (테스트 데이터 빌더)
+	// =========================
+	private class Given {
+		private User user;
+		private ShippingInfo shipping;
+
+		Given userAndShipping() {
+			this.user = userRepository.save(TestFixture.user());
+			Address address = addressRepository.save(TestFixture.address(user));
+			this.shipping = TestFixture.shippingFrom(address);
+			return this;
+		}
+
+		Product product(String name, long price) {
+			return productRepository.save(TestFixture.product(name, price));
+		}
+
+		Order paidOrderAt(LocalDateTime createdAt) {
+			Order o = orderRepository.save(TestFixture.draftOrder(user, shipping));
+			// 상태 변경
+			o.paid();
+
+			// ✅ createdAt을 원하는 값으로 강제
+			forceCreatedAtManagedEntity(o, createdAt);
+
+			return o;
+		}
+
+		Order notPaidOrderAt(LocalDateTime createdAt) {
+			Order o = orderRepository.save(TestFixture.draftOrder(user, shipping));
+			forceCreatedAtManagedEntity(o, createdAt);
+			return o;
+		}
+
+		void orderItem(Order order, Product p, long qty) {
+			OrderProduct op = TestFixture.orderProduct(p.getId(), p.getName(), p.getPrice(), qty);
+			op.initOrder(order);
+			orderProductRepository.save(op);
+		}
 	}
 
-	private void forceCreatedAt(Order order, LocalDateTime createdAt) {
+	/**
+	 * ✅ "저장 후" 관리 엔티티 상태에서 createdAt을 바꾸고,
+	 * flush 타이밍에 UPDATE가 나가도록 한다.
+	 *
+	 * 주의: @CreatedDate auditing이 PrePersist에서 덮는 경우가 있어
+	 * 저장 전에 set하는 방식보다 "저장 후 변경"이 안전하다.
+	 */
+	private void forceCreatedAtManagedEntity(Order order, LocalDateTime createdAt) {
 		ReflectionTestUtils.setField(order, "createdAt", createdAt);
 		ReflectionTestUtils.setField(order, "updatedAt", createdAt);
 	}
