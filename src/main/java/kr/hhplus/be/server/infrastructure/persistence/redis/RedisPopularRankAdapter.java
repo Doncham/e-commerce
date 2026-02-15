@@ -1,12 +1,11 @@
 package kr.hhplus.be.server.infrastructure.persistence.redis;
 
-import java.time.Duration;
-
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Component;
 
 import kr.hhplus.be.server.application.product.PopularRankPort;
+import kr.hhplus.be.server.application.product.PopularScoreCodec;
 import lombok.RequiredArgsConstructor;
 
 @Component
@@ -16,13 +15,20 @@ public class RedisPopularRankAdapter implements PopularRankPort {
 
 	@Override
 	public void increment7d(Long productId, long qty) {
-		ZSetOperations<String, String> sortedSet = redisTemplate.opsForZSet();
-		sortedSet.incrementScore("rank:7d", String.valueOf(productId), qty);
+
 	}
 
 	@Override
 	public void increment30d(Long productId, long qty) {
-		ZSetOperations<String, String> sortedSet = redisTemplate.opsForZSet();
-		sortedSet.incrementScore("rank:30d", String.valueOf(productId), qty);
+		increment("rank:30d", productId, qty);
+	}
+
+	private void increment(String key, Long productId, long qty) {
+		if (productId == null || productId <= 0) return;
+		if (qty <= 0) return;
+		// deltaScore = qty * SHIFT
+		double deltaScore = PopularScoreCodec.deltaForIncrement(qty);
+
+		redisTemplate.opsForZSet().incrementScore(key, String.valueOf(productId), deltaScore);
 	}
 }

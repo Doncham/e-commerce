@@ -4,33 +4,30 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import kr.hhplus.be.server.api.product.ProductDetailResponse;
 import kr.hhplus.be.server.api.product.response.PopularProductItemResponse;
 import kr.hhplus.be.server.api.product.response.PopularProductsResponse;
+import kr.hhplus.be.server.domain.inventory.InventoryStatus;
+import kr.hhplus.be.server.domain.inventory.exception.NotFoundInventoryException;
 import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.product.Product;
 import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
-import kr.hhplus.be.server.domain.inventory.InventoryStatus;
-import kr.hhplus.be.server.domain.inventory.exception.NotFoundInventoryException;
-import kr.hhplus.be.server.api.product.ProductDetailResponse;
 import kr.hhplus.be.server.infrastructure.persistence.orderproduct.OrderProductRepository;
 import kr.hhplus.be.server.infrastructure.persistence.product.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -44,11 +41,14 @@ public class ProductService {
 	private static final int LOW_STOCK_THRESHOLD = 10;
 	private static final int POPULAR_PRODUCT_LIMIT = 20;
 
+	private static final Duration PRODUCT_SNAP_TTL = Duration.ofDays(7);
+
 	private final InventoryRepository inventoryRepository;
 	private final OrderProductRepository orderProductRepository;
 	private final ProductRepository productRepository;
 
 	private final StringRedisTemplate stringRedisTemplate;
+	private final ObjectMapper objectMapper;
 
 	@Transactional(readOnly = true)
 	public ProductDetailResponse getProductDetail(long productId) {
@@ -71,49 +71,134 @@ public class ProductService {
 
 		Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
 			.reverseRangeWithScores(zsetKey, 0, POPULAR_PRODUCT_LIMIT - 1);
+
 		if(tuples == null || tuples.isEmpty()) {
 			// fallback: 배치 전이나 비어있으면 DB 집계해서 반환해줌.
 			return queryPopularsFromDb(range);
 		}
 
-		// 2) productId 리스트 추출 + score(판매량) 맵 만들기
-		List<Long> productIds = new ArrayList<>(tuples.size());
+		// map: {productId, soldQty}
+		// 랭크 순서가 유지되는 list(productId)
+		List<Long> rankedProductIds = new ArrayList<>(tuples.size());
 		Map<Long, Long> soldQtyMap = new HashMap<>(tuples.size());
 
 		for (ZSetOperations.TypedTuple<String> t : tuples) {
-			if (t.getValue() == null || t.getScore() == null) continue;
+			if (t == null || t.getValue() == null || t.getScore() == null) continue;
 			long productId = Long.parseLong(t.getValue());
-			long soldQty = t.getScore().longValue(); // score=double -> long으로 변환(정수 집계라는 전제)
-			productIds.add(productId);
+
+			// 실제 판매량, soldQty
+			long soldQty = PopularScoreCodec.decodeQty(t.getScore());
+
+			rankedProductIds.add(productId);
 			soldQtyMap.put(productId, soldQty);
 		}
 
-		// 3) DB에서 상품 상세 조회
-		List<Product> products = productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(productIds);
+		if (rankedProductIds.isEmpty()) {
+			return queryPopularsFromDb(range);
+		}
 
-		Map<Long, Product> productMap = products.stream()
-			.collect(Collectors.toMap(Product::getId, p -> p));
+		// Tier2: 스냅샷 캐시 MGET
+		List<String> snapKeys = rankedProductIds.stream()
+			.map(this::snapKey)
+			.toList();
 
-		// 4) 응답 DTO 구성 (ZSET 순서대로 rank 부여)
+		// 캐시된 product 상세, 50개 들어있음, 없는 캐시는 null
+		List<String> snapJsons = stringRedisTemplate.opsForValue().multiGet(snapKeys);
+
+		Map<Long, ProductSnap> snapMap = new HashMap<>();
+		List<Long> missedIds = new ArrayList<>();
+
+		for(int i = 0; i < rankedProductIds.size(); i++) {
+			Long pid = rankedProductIds.get(i);
+			// 이렇게 전부 방어하는게 맞나? 코테에 익숙하면 방어 잘하겠네
+			String json = (snapJsons == null || snapJsons.size() <= i ? null : snapJsons.get(i));
+
+			if (json == null || json.isBlank()) {
+				// 캐시에 없는 product 모으기.
+				missedIds.add(pid);
+				continue;
+			}
+			try {
+				// pid랑 snapJsons에 있는 객체랑 1:1로 매핑되어야함.
+				ProductSnap snap = objectMapper.readValue(json, ProductSnap.class);
+				// 만약 캐시가 꼬였으면 해당 product 상세 내용을 저장 x
+				if(snap != null && snap.getProductId().equals(pid)) {
+					snapMap.put(pid, snap);
+				} else {
+					missedIds.add(pid);
+				}
+			} catch (Exception e) {
+				// 깨진 캐시 제거하고 DB 미스로 처리
+				stringRedisTemplate.delete(snapKey(pid));
+				missedIds.add(pid);
+			}
+		}
+
+		// 미스만 DB 조회
+		if (!missedIds.isEmpty()) {
+			List<Product> missProducts = productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(missedIds);
+
+			// DB 결과를 snap으로 변환
+			List<ProductSnap> newSnaps = missProducts.stream()
+				.map(ProductSnap::from)
+				.toList();
+
+			// map에 합치기
+			for (ProductSnap s : newSnaps) {
+				snapMap.put(s.getProductId(), s);
+			}
+
+			// 미스만 Redis에 채우기 (pipeline으로 최적화)
+			warmupProductSnaps(newSnaps, PRODUCT_SNAP_TTL);
+		}
+
+		// ZSET 순서대로 응답 구성(rank 유지)
 		List<PopularProductItemResponse> items = new ArrayList<>();
 		int rank = 1;
 
-		for (Long productId : productIds) {
-			Product p = productMap.get(productId);
-			if (p == null) continue;
+		for (Long productId : rankedProductIds) {
+			ProductSnap snap = snapMap.get(productId);
+			if(snap == null) continue;
 
 			items.add(new PopularProductItemResponse(
 				rank++,
-				p.getId(),
-				p.getName(),
-				p.getPrice(),
+				snap.getProductId(),
+				snap.getName(),
+				snap.getPrice(),
 				soldQtyMap.getOrDefault(productId, 0L)
 			));
 		}
 
 		return new PopularProductsResponse(range.days() + "d", LocalDateTime.now(), items);
-
 	}
+
+	// Tier2 warmup(pipeline)
+	private void warmupProductSnaps(List<ProductSnap> snaps, Duration ttl) {
+		if(snaps == null || snaps.isEmpty()) return;
+
+		stringRedisTemplate.executePipelined((RedisCallback<Object>)connection -> {
+			for (ProductSnap s : snaps) {
+				try {
+					String key = snapKey(s.getProductId());
+					String json = objectMapper.writeValueAsString(s);
+
+					RedisSerializer<String> serializer = stringRedisTemplate.getStringSerializer();
+					byte[] k = serializer.serialize(key);
+					byte[] v = serializer.serialize(json);
+
+					connection.stringCommands().set(k, v);
+					if (ttl != null) {
+						connection.expire(k, ttl.getSeconds());
+					}
+				} catch (Exception e) {
+					// warmup 실패는 조회 결과에 영향을 주ㅕㅁㄴ 안됨
+					log.warn("product snap warmup failed. productId={}", s.getProductId(), e);
+				}
+			}
+			return null;
+		});
+	}
+
 	private PopularProductsResponse queryPopularsFromDb(PopularDateRange range) {
 		LocalDateTime to = LocalDateTime.now();
 		LocalDateTime from = to.minusDays(range.days());
@@ -159,6 +244,10 @@ public class ProductService {
 			case SEVEN -> "rank:zset:7d";
 			case THIRTY -> "rank:zset:30d";
 		};
+	}
+
+	private String snapKey(long productId) {
+		return "product:snap:" + productId;
 	}
 }
 
