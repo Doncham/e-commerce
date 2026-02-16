@@ -15,6 +15,7 @@ import org.springframework.data.redis.core.ZSetOperations;
 
 import jakarta.persistence.EntityManager;
 import kr.hhplus.be.server.application.product.PopularProductIncrementPayload;
+import kr.hhplus.be.server.application.product.PopularScoreCodec;
 import kr.hhplus.be.server.domain.outbox.AggregateType;
 import kr.hhplus.be.server.domain.outbox.EventType;
 import kr.hhplus.be.server.domain.outbox.OutboxEvent;
@@ -80,11 +81,11 @@ public class OutboxPopularIncrementIntegrationTest {
 
 
 		// 7d/30d를 실시간 증분하도록 구현했다는 전제
-		assertThat(z.score("rank:7d", "10")).isEqualTo(2.0);
-		assertThat(z.score("rank:7d", "20")).isEqualTo(5.0);
+		assertThat(PopularScoreCodec.decodeQty(z.score("rank:7d", "10"))).isEqualTo(2L);
+		assertThat(PopularScoreCodec.decodeQty(z.score("rank:7d", "20"))).isEqualTo(5L);
 
-		assertThat(z.score("rank:30d", "10")).isEqualTo(2.0);
-		assertThat(z.score("rank:30d", "20")).isEqualTo(5.0);
+		assertThat(PopularScoreCodec.decodeQty(z.score("rank:30d", "10"))).isEqualTo(2L);
+		assertThat(PopularScoreCodec.decodeQty(z.score("rank:30d", "20"))).isEqualTo(5L);
 	}
 
 	@Test
@@ -116,8 +117,8 @@ public class OutboxPopularIncrementIntegrationTest {
 		ZSetOperations<String, String> z = redisTemplate.opsForZSet();
 
 		// 7d/30d도 실시간 증분이면 같이 2번 반영
-		assertThat(z.score("rank:7d", "10")).isEqualTo(4.0);
-		assertThat(z.score("rank:30d", "10")).isEqualTo(4.0);
+		assertThat(PopularScoreCodec.decodeQty(z.score("rank:7d", "10"))).isEqualTo(4L);
+		assertThat(PopularScoreCodec.decodeQty(z.score("rank:30d", "10"))).isEqualTo(4L);
 	}
 
 	@Test

@@ -1,7 +1,6 @@
 package kr.hhplus.be.server.infrastructure.persistence.redis;
 
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Component;
 
 import kr.hhplus.be.server.application.product.PopularRankPort;
@@ -15,7 +14,7 @@ public class RedisPopularRankAdapter implements PopularRankPort {
 
 	@Override
 	public void increment7d(Long productId, long qty) {
-
+		increment("rank:7d", productId, qty);
 	}
 
 	@Override

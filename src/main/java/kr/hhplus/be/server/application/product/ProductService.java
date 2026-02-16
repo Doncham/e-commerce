@@ -11,9 +11,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.redis.connection.RedisStringCommands;
+import org.springframework.data.redis.connection.RedisStringCommands.SetOption;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.types.Expiration;
 import org.springframework.data.redis.serializer.RedisSerializer;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,13 +71,17 @@ public class ProductService {
 	@Transactional(readOnly = true)
 	public PopularProductsResponse getPopulars(PopularDateRange range) {
 		String zsetKey = zsetKey(range);
+		String oldKey = zsetKey + ":old";
 
 		Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
 			.reverseRangeWithScores(zsetKey, 0, POPULAR_PRODUCT_LIMIT - 1);
 
 		if(tuples == null || tuples.isEmpty()) {
 			// fallback: 배치 전이나 비어있으면 DB 집계해서 반환해줌.
-			return queryPopularsFromDb(range);
+			tuples = stringRedisTemplate.opsForZSet().reverseRangeWithScores(oldKey, 0, POPULAR_PRODUCT_LIMIT - 1);
+			if (tuples == null || tuples.isEmpty()) {
+				return queryPopularsFromDb(range);
+			}
 		}
 
 		// map: {productId, soldQty}
@@ -175,18 +182,17 @@ public class ProductService {
 	// Tier2 warmup(pipeline)
 	private void warmupProductSnaps(List<ProductSnap> snaps, Duration ttl) {
 		if(snaps == null || snaps.isEmpty()) return;
-
+		RedisSerializer<String> serializer = stringRedisTemplate.getStringSerializer();
+		Expiration expiration = (ttl == null) ? Expiration.persistent() : Expiration.seconds(ttl.getSeconds());
 		stringRedisTemplate.executePipelined((RedisCallback<Object>)connection -> {
 			for (ProductSnap s : snaps) {
 				try {
 					String key = snapKey(s.getProductId());
 					String json = objectMapper.writeValueAsString(s);
 
-					RedisSerializer<String> serializer = stringRedisTemplate.getStringSerializer();
 					byte[] k = serializer.serialize(key);
 					byte[] v = serializer.serialize(json);
-
-					connection.stringCommands().set(k, v);
+					connection.stringCommands().set(k, v, expiration, SetOption.UPSERT);
 					if (ttl != null) {
 						connection.expire(k, ttl.getSeconds());
 					}

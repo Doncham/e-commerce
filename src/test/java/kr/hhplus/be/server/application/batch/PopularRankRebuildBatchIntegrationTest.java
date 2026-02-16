@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import jakarta.persistence.EntityManager;
 import kr.hhplus.be.server.TestFixture;
 import kr.hhplus.be.server.application.FixedClockConfig;
+import kr.hhplus.be.server.application.product.PopularScoreCodec;
 import kr.hhplus.be.server.application.product.batch.PopularRankRebuildService;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.order.Order;
@@ -138,24 +139,25 @@ class PopularRankRebuildServiceIntegrationTest {
 		rebuildService.rebuild30d(50);
 
 		// --- then: 7d ---
-		Double p1_7d = redis.opsForZSet().score("rank:7d", String.valueOf(p1.getId()));
-		Double p2_7d = redis.opsForZSet().score("rank:7d", String.valueOf(p2.getId()));
+		Long p1_7d = PopularScoreCodec.decodeQty(redis.opsForZSet().score("rank:7d", String.valueOf(p1.getId())));
+		Long p2_7d = PopularScoreCodec.decodeQty(redis.opsForZSet().score("rank:7d", String.valueOf(p2.getId())));
 		Double p3_7d = redis.opsForZSet().score("rank:7d", String.valueOf(p3.getId()));
-		System.out.println("null임?" + p1_7d);
 
 		// 7d에서는 out7(8일 전) 제외 => p1=2, p2=7
-		assertThat(p1_7d).isEqualTo(2.0);
-		assertThat(p2_7d).isEqualTo(7.0);
+		assertThat(p1_7d).isEqualTo(2L);
+		assertThat(p2_7d).isEqualTo(7L);
 		assertThat(p3_7d).isNull();
 
 		// --- then: 30d ---
-		Double p1_30d = redis.opsForZSet().score("rank:30d", String.valueOf(p1.getId()));
-		Double p2_30d = redis.opsForZSet().score("rank:30d", String.valueOf(p2.getId()));
+		Long p1_30d = PopularScoreCodec.decodeQty(redis.opsForZSet().score("rank:30d", String.valueOf(p1.getId())));
+		Long p2_30d = PopularScoreCodec.decodeQty(redis.opsForZSet().score("rank:30d", String.valueOf(p2.getId())));
 		Double p3_30d = redis.opsForZSet().score("rank:30d", String.valueOf(p3.getId()));
 
+
+
 		// 30d에서는 in7(2) + in30(3) + out7(5) 포함, FAILED 제외, deleted 제외 => p1=2+3+5=10
-		assertThat(p1_30d).isEqualTo(10.0);
-		assertThat(p2_30d).isEqualTo(7.0);
+		assertThat(p1_30d).isEqualTo(10L);
+		assertThat(p2_30d).isEqualTo(7L);
 		assertThat(p3_30d).isNull();
 	}
 
