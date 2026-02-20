@@ -20,7 +20,9 @@ import lombok.RequiredArgsConstructor;
 */
 public class FirstComeCouponService {
 	private static final long SHIFT = 1_000L;
-	private static final Duration APPLY_TTL = Duration.ofDays(2);
+	private static final Duration APPLY_TTL = Duration.ofMinutes(1);
+	private static final Duration REQ_TTL = Duration.ofDays(2);
+
 	private final StringRedisTemplate redis;
 	private final Clock clock;
 	public ApplyResponseDto apply(long couponId, long userId) {
@@ -54,17 +56,17 @@ public class FirstComeCouponService {
 			redis.opsForSet().remove(appliedKey, String.valueOf(userId));
 			throw new IllegalStateException("Redis INCR returned null");
 		}
-		redis.expire(seqKey, APPLY_TTL);
+		redis.expire(seqKey, REQ_TTL);
 
 		long packed = nowMs * SHIFT + (seq % SHIFT);
 		double score = (double) packed;
 		Boolean ok = redis.opsForZSet().add(reqKey, String.valueOf(userId), score);
 		if (ok == null || !ok) {
 			// 큐잉 실패 시 보상
-			redis.opsForZSet().remove(appliedKey, String.valueOf(userId));
+			redis.opsForSet().remove(appliedKey, String.valueOf(userId));
 			throw new IllegalStateException("Failed to enqueue request into ZSET");
 		}
-		redis.expire(reqKey, APPLY_TTL);
+		redis.expire(reqKey, REQ_TTL);
 
 		return ApplyResponseDto.ok(ApplyResponseDto.ApplyCode.ACCEPTED,"신청 접수");
 
