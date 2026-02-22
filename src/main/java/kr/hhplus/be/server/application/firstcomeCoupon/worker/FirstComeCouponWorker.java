@@ -1,19 +1,15 @@
 package kr.hhplus.be.server.application.firstcomeCoupon.worker;
 
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.application.firstcomeCoupon.ActiveCouponRegistry;
-import kr.hhplus.be.server.domain.usercoupon.UserCoupon;
 import kr.hhplus.be.server.infrastructure.persistence.userCoupon.UserCouponRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,9 +22,11 @@ public class FirstComeCouponWorker {
 	// 한 번에 pop할 최대 개수 (DB/Redis 상황에 따라 50~200 설정)
 	private static final int POP_BATCH_SIZE = 50;
 
+	private final FirstComeCouponIssuer firstComeCouponIssuer;
 	private final StringRedisTemplate redis;
 	private final UserCouponRepository userCouponRepository;
 	private final ActiveCouponRegistry activeCouponRegistry;
+
 
 	/**
 	 * 예시: 200ms마다 돌아서 빨리 비우는 형태(이벤트 트래픽에 따라 조절 가능)
@@ -46,8 +44,6 @@ public class FirstComeCouponWorker {
 		String reqKey = reqKey(couponId);
 		String issuedKey = issuedKey(couponId);
 		String remainKey = remainKey(couponId);
-
-		redis.expire(issuedKey, REQ_TTL);
 
 		int processed = 0;
 		while (processed < maxBatch) {
@@ -94,6 +90,10 @@ public class FirstComeCouponWorker {
 
 				// 3-1) 워커 단계 중복 발급 방지
 				Long issuedAdded = redis.opsForSet().add(issuedKey, userIdStr);
+				// 키가 처음 만들어지는 순간에만 expire 명령어 날리기
+				if (issuedAdded == 1L) {
+					redis.expire(issuedKey, REQ_TTL);
+				}
 				if (issuedAdded == null) {
 					// Redis 이상: 안정적으로 복구 후 종료
 					releaseRemain(remainKey, 1);
@@ -106,34 +106,31 @@ public class FirstComeCouponWorker {
 				}
 
 				// 3-2) DB insert (최종 확정)
-				boolean committed = issueToDb(couponId, userId);
+				IssueResult result = firstComeCouponIssuer.issueToDb(couponId, userId);
+				Double score = t.getScore();
 
-				if (!committed) {
-					// DB 실패/중복이면 보상(issued 제거 + 수량 복구)
-					redis.opsForSet().remove(issuedKey, userIdStr);
-					releaseRemain(remainKey, 1);
+				if (result == IssueResult.SUCCESS) {
+					processed++;
+					if(processed >= maxBatch) break;
+					continue;
 				}
-				processed++;
 
-				if (processed >= maxBatch)
-					break;
+				// 실패면 보상작업: issued 제거 + remain 복구
+				redis.opsForSet().remove(issuedKey, userIdStr);
+				releaseRemain(remainKey, 1);
+
+				if(result == IssueResult.PERMANENT_FAIL) continue;
+
+				// 재시도 가능 시 requeue
+				double requeueScore = score != null ? score : (double)System.currentTimeMillis();
+				// backoff: 너무 빨리 다시 잡히지 않게 뒤로 넣기(5초)
+				requeueScore += 5_000.0;
+
+				redis.opsForZSet().add(reqKey, userIdStr, requeueScore);
+				return;
+
 			}
 
-		}
-	}
-
-
-	@Transactional
-	protected boolean issueToDb(long couponId, long userId) {
-		try {
-			userCouponRepository.save(UserCoupon.createUserCoupon(userId, couponId));
-			return true;
-		} catch (DataIntegrityViolationException e) {
-			// 중복 발급, 해당 쿠폰 없음 등
-			return false;
-		} catch (Exception e) {
-			// 그 외의 뭔지 모를 예외
-			return false;
 		}
 	}
 
