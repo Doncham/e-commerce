@@ -45,9 +45,9 @@ public class FirstComeCouponWorker {
 		String issuedKey = issuedKey(couponId);
 		String remainKey = remainKey(couponId);
 
-		int processed = 0;
-		while (processed < maxBatch) {
-			int want = Math.min(POP_BATCH_SIZE, maxBatch - processed);
+		int attempts = 0;
+		while (attempts < maxBatch) {
+			int want = Math.min(POP_BATCH_SIZE, maxBatch - attempts);
 
 			// 1) 수량을 배치로 선점 (want 만큼)
 			int reserved = reserveRemain(remainKey, want);
@@ -110,8 +110,8 @@ public class FirstComeCouponWorker {
 				Double score = t.getScore();
 
 				if (result == IssueResult.SUCCESS) {
-					processed++;
-					if(processed >= maxBatch) break;
+					attempts++;
+					if(attempts >= maxBatch) break;
 					continue;
 				}
 
@@ -127,7 +127,7 @@ public class FirstComeCouponWorker {
 				requeueScore += 5_000.0;
 
 				redis.opsForZSet().add(reqKey, userIdStr, requeueScore);
-				return;
+				attempts++;
 
 			}
 

@@ -15,8 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 public class FirstComeCouponIssuer {
 	private final UserCouponRepository userCouponRepository;
 
-	@Transactional
-	protected IssueResult issueToDb(long couponId, long userId) {
+	public IssueResult issueToDb(long couponId, long userId) {
 		try {
 			userCouponRepository.save(UserCoupon.createUserCoupon(userId, couponId));
 			return IssueResult.SUCCESS;
