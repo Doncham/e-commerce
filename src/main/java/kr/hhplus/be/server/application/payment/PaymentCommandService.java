@@ -1,6 +1,9 @@
 package kr.hhplus.be.server.application.payment;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -17,6 +20,7 @@ import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.application.order.OrderPort;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
+import kr.hhplus.be.server.application.product.PopularProductIncrementPayload;
 import kr.hhplus.be.server.application.product.ProductService;
 import kr.hhplus.be.server.domain.coupon.exception.CouponExpiredException;
 import kr.hhplus.be.server.domain.coupon.exception.InsufficientCouponStockException;
@@ -61,6 +65,9 @@ public class PaymentCommandService {
 	private final PointRepository pointRepo;
 	private final PointReservationRepository pointReservationRepo;
 	private final ProductService productService;
+
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+	private static final DateTimeFormatter YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
 
 	@Transactional
 	public PaymentAttempt preparePayment(Long orderId, String idemKey) {
@@ -113,17 +120,20 @@ public class PaymentCommandService {
 			}
 
 			// 결제 성공 기록
-			payment.paymentSuccess(pgResp.getPgTransactionId(), LocalDateTime.now());
+			LocalDateTime paidAt = LocalDateTime.now();
+			payment.paymentSuccess(pgResp.getPgTransactionId(), paidAt);
 
 			// 예약 확정(재고/포인트사용/쿠폰)
 			confirmPointReservations(order);
 			confirmInventoryReservations(order);
 
-
-			// 포인트 적립만 outbox
-			publishPointEarnOutbox(order, pgResp.getPgTransactionId());
-
 			order.paid();
+
+			// outbox 이벤트 insert
+			// 포인트 적립 outbox 이벤트
+			publishPointEarnOutbox(order, pgResp.getPgTransactionId());
+			// 인기상품증분 outbox 이벤트
+			publishPopularIncrementOutbox(order, paidAt);
 
 			return PayResponse.of(order, payment);
 		} else {
@@ -135,7 +145,6 @@ public class PaymentCommandService {
 
 
 			order.failed();
-			productService.evictPopularCacheAllRanges();
 			return PayResponse.of(order, payment);
 		}
 	}
@@ -228,6 +237,38 @@ public class PaymentCommandService {
 			EventType.PAYMENT_COMPLETION_GIVE_POINT,
 			payloadJson
 		);
+		outboxEventRepository.save(outboxEvent);
+	}
+
+	private void publishPopularIncrementOutbox(Order order, LocalDateTime paidAt) {
+		// 1) 날짜 문자열 생성 (KST 기준)
+		String yyyymmdd = ZonedDateTime.of(paidAt, KST).format(YYYYMMDD);
+
+		// 2) 주문 아이템(productId, qty) 구성
+		List<PopularProductIncrementPayload.Item> items = order.getOrderProducts().stream()
+			.map(op -> new PopularProductIncrementPayload.Item(op.getProductId(), op.getQty()))
+			.toList();
+
+		PopularProductIncrementPayload payload = new PopularProductIncrementPayload(
+			order.getId(),
+			yyyymmdd,
+			items
+		);
+
+		String payloadJson;
+		try {
+			payloadJson = objectMapper.writeValueAsString(payload);
+		} catch (JsonProcessingException e) {
+			throw new RuntimeException("Failed to serialize popular increment payload", e);
+		}
+
+		OutboxEvent outboxEvent = OutboxEvent.of(
+			AggregateType.ORDER,
+			order.getId(),
+			EventType.ORDER_PAID_POPULAR_INCREMENT,
+			payloadJson
+		);
+
 		outboxEventRepository.save(outboxEvent);
 	}
 }

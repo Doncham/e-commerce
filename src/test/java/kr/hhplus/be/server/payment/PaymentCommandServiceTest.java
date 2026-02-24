@@ -135,7 +135,7 @@ class PaymentCommandServiceTest {
 		assertEquals(InventoryReserveStatus.CONFIRMED, r1.getStatus());
 
 		// then: outbox 발행
-		verify(outboxEventRepository).save(any());
+		verify(outboxEventRepository, times(2)).save(any());
 		assertEquals(orderId, res.getOrderId());
 		assertEquals(PaymentStatus.SUCCESS, res.getStatus());
 	}

@@ -213,7 +213,7 @@ public class PaymentIdempIntegrationTest {
 		Assertions.assertEquals(0L, inventoryAfterPayment.getReserved());
 		Assertions.assertEquals(OrderStatus.PAID.toString(), orderAfterPayment.getStatus().toString());
 		Assertions.assertEquals(1, count);
-		Assertions.assertEquals(1, outboxCount);
+		Assertions.assertEquals(2, outboxCount);
 
 		// 포인트 충전 1회 + 결제 1회 = 2회
 		verify(pgPort, times(1)).requestPayment(any());

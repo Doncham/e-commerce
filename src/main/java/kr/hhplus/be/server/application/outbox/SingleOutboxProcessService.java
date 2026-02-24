@@ -6,6 +6,7 @@ import java.util.ArrayList;
 
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.stereotype.Service;
 
 import kr.hhplus.be.server.domain.outbox.OutboxBusinessTxService;
@@ -55,6 +56,8 @@ public class SingleOutboxProcessService {
 
 	private boolean isRetryable(Throwable t) {
 		Throwable root = rootCause(t);
+		if (root instanceof RedisConnectionFailureException) return true;
+
 		if (root instanceof java.sql.SQLException se) {
 			int code = se.getErrorCode();
 			return code == 1205 /* lock wait timeout */ || code == 1213 /* deadlock */;

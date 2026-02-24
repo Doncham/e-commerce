@@ -8,6 +8,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
@@ -16,6 +17,12 @@ import lombok.NoArgsConstructor;
 @Entity
 @Getter
 @NoArgsConstructor
+@Table(
+	uniqueConstraints = @UniqueConstraint(
+		name = "ux_couponId_and_userId",
+		columnNames = {"user_id","coupon_id"}
+	)
+)
 public class UserCoupon {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
