@@ -120,7 +120,7 @@ class PaymentCommandServiceTest {
 		when(objectMapper.writeValueAsString(any())).thenReturn("{}");
 
 		PaymentGatewayResponse pgResp =
-			PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.SUCCESS, 2500L);
+			PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.SUCCESS, 2500L,null,null);
 
 		// when
 		PayResponse res = paymentCommandService.completePayment(10L, pgResp);
@@ -162,7 +162,7 @@ class PaymentCommandServiceTest {
 		when(invRepo.findByIdsForUpdate(List.of(100L))).thenReturn(List.of(inv));
 
 		PaymentGatewayResponse pgResp =
-			PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.FAILURE, 2500L);
+			PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.FAILURE, 2500L,null,null);
 
 		// when
 		PayResponse res = paymentCommandService.completePayment(10L, pgResp);

@@ -18,6 +18,6 @@ public class FakePaymentGateWayAdapter implements PaymentGatewayPort {
 		String txNum = uuid.substring(0, 3);
 		return PaymentGatewayResponse.of("tx-" + txNum,
 			PaymentGatewayStatus.SUCCESS,
-			request.getAmount());
+			request.getAmount(), null, null);
 	}
 }

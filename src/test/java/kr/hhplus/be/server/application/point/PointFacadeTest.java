@@ -51,7 +51,7 @@ class PointFacadeTest {
 
 		ReflectionTestUtils.setField(pending,"id",pointChargeId);
 		PaymentGatewayResponse pgRes = PaymentGatewayResponse.of(pgTransaction,
-			PaymentGatewayStatus.SUCCESS, amount);
+			PaymentGatewayStatus.SUCCESS, amount, null, null);
 		PointChargeResponse pointChargeResponse = PointChargeResponse.of(pending);
 
 		when(pointCommandService.createPending(request)).thenReturn(pending);

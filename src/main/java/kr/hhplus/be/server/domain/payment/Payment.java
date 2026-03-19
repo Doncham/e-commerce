@@ -39,6 +39,7 @@ public class Payment extends BaseTimeEntity {
 	@JoinColumn(name = "order_id", nullable = false)
 	private Order order;
 
+	// pg에 실제로 요청한 금액
 	@Column(nullable = false)
 	private Long amount;
 

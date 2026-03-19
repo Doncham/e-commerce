@@ -103,17 +103,12 @@ public class Order extends BaseTimeEntity {
 		items.forEach(this::addOrderProduct);
 
 		// item 총 가격 계산
-		long itemTotal = calculateItemTotal();
-		this.itemTotal = itemTotal;
-
+		this.itemTotal = calculateItemTotal();
 		this.couponId = couponId;
 		this.couponDiscount = couponDiscount == null ? 0L : couponDiscount;
 		this.pointUsed = point == null ? 0L : point;
-		long discounted = Math.max(0L, this.itemTotal - this.couponDiscount - this.pointUsed);
-		this.payAmount = discounted;
-
+		this.payAmount = Math.max(0L, this.itemTotal - this.couponDiscount - this.pointUsed);
 		this.memo = memo;
-
 		this.status = OrderStatus.CREATED;
 	}
 	private void ensureDraftState() {

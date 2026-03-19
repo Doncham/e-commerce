@@ -116,7 +116,7 @@ public class PaymentIdempIntegrationTest {
 		Address addr = persist.saveAndFlush(addressRepository, TestFixture.address(u));
 		Long pointChargeAmount = 5000L;
 		PaymentGatewayResponse pgPointChargeRes = PaymentGatewayResponse.of(TestFixture.pgTxId(),
-			PaymentGatewayStatus.SUCCESS, pointChargeAmount);
+			PaymentGatewayStatus.SUCCESS, pointChargeAmount, null, null);
 		when(pgPort.requestPayment(any())).thenReturn(pgPointChargeRes);
 		// 포인트 충전 api 호출 후 point 잔액 확인
 		PointChargeRequest request = PointChargeRequest.builder()
@@ -172,7 +172,7 @@ public class PaymentIdempIntegrationTest {
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);
 
 		PaymentGatewayResponse pgRes = PaymentGatewayResponse.of(TestFixture.pgTxId(),
-			PaymentGatewayStatus.SUCCESS, 1000L);
+			PaymentGatewayStatus.SUCCESS, 1000L, null, null);
 		Mockito.when(pgPort.requestPayment(any())).thenReturn(pgRes);
 		//when(pgPort.requestPayment(any(PaymentGatewayRequest.class))).thenReturn(pgRes);
 

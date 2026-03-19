@@ -105,7 +105,7 @@ class PointServiceTest {
 		PointCharge pointCharge = PointCharge.of(userId, chargeAmount, idempotencyKey);
 
 		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of(pgTransactionId,
-			PaymentGatewayStatus.SUCCESS, chargeAmount);
+			PaymentGatewayStatus.SUCCESS, chargeAmount, null, null);
 
 		when(pointChargeRepository.findById(pointChargeId)).thenReturn(Optional.of(pointCharge));
 		when(pointRepository.findByUserIdForUpdate(userId))
@@ -157,7 +157,7 @@ class PointServiceTest {
 			.build();
 
 		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of(pgTransactionId,
-			PaymentGatewayStatus.SUCCESS, chargeAmount);
+			PaymentGatewayStatus.SUCCESS, chargeAmount, null, null);
 
 		when(pointChargeRepository.findById(pointChargeId)).thenReturn(Optional.of(existingPointCharge));
 
@@ -191,7 +191,7 @@ class PointServiceTest {
 			.build();
 
 		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of(pgTransactionId,
-			PaymentGatewayStatus.FAILURE, chargeAmount);
+			PaymentGatewayStatus.FAILURE, chargeAmount, null, null);
 
 		when(pointChargeRepository.findById(pointChargeId)).thenReturn(Optional.of(existingPointCharge));
 

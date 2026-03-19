@@ -46,7 +46,7 @@ public class PaymentFacadeTest {
 		PayRequest req = PayRequest.of(idemKey, orderId);
 
 		PaymentAttempt attempt = PaymentAttempt.of(orderId, paymentId, amount, idemKey);
-		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.SUCCESS, amount);
+		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.SUCCESS, amount, null, null);
 		PayResponse expected = PayResponse.builder()
 			.orderId(orderId)
 			.amount(amount)
