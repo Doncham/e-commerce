@@ -1,54 +1,26 @@
 package kr.hhplus.be.server.application.payment;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.application.order.OrderPort;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
-import kr.hhplus.be.server.application.product.PopularProductIncrementPayload;
-import kr.hhplus.be.server.application.product.ProductService;
 import kr.hhplus.be.server.domain.coupon.exception.CouponExpiredException;
 import kr.hhplus.be.server.domain.coupon.exception.InsufficientCouponStockException;
 import kr.hhplus.be.server.domain.coupon.exception.NotFoundCoupon;
 import kr.hhplus.be.server.domain.coupon.exception.UserCouponLimitExceededException;
-import kr.hhplus.be.server.domain.inventory.Inventory;
-import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservation;
-import kr.hhplus.be.server.domain.inventoryReserve.InventoryReserveStatus;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.exception.OrderAlreadyPaidOrderException;
-import kr.hhplus.be.server.domain.outbox.AggregateType;
-import kr.hhplus.be.server.domain.outbox.EventType;
-import kr.hhplus.be.server.domain.outbox.OutboxEvent;
-import kr.hhplus.be.server.domain.outbox.PaymentCompletedPayload;
 import kr.hhplus.be.server.domain.payment.Payment;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
 import kr.hhplus.be.server.domain.payment.PaymentPort;
-import kr.hhplus.be.server.domain.point.Point;
-import kr.hhplus.be.server.domain.point.exception.PointNotFoundException;
-import kr.hhplus.be.server.domain.pointReservation.PointReservation;
-import kr.hhplus.be.server.domain.pointReservation.PointReserveStatus;
-import kr.hhplus.be.server.domain.pointReservation.exception.PointReservationNotFoundException;
 import kr.hhplus.be.server.exception.ErrorCode;
-import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
-import kr.hhplus.be.server.infrastructure.persistence.inventoryReserve.InventoryReserveRepository;
-import kr.hhplus.be.server.infrastructure.persistence.outbox.OutboxEventRepository;
-import kr.hhplus.be.server.infrastructure.persistence.point.PointRepository;
-import kr.hhplus.be.server.infrastructure.persistence.pointReservation.PointReservationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -58,15 +30,8 @@ import lombok.extern.slf4j.Slf4j;
 public class PaymentCommandService {
 	private final PaymentPort paymentPort;
 	private final OrderPort orderPort;
-	private final OutboxEventRepository outboxEventRepository;
-	private final ObjectMapper objectMapper;
-	private final InventoryReserveRepository invReserveRepo;
-	private final InventoryRepository invRepo;
-	private final PointRepository pointRepo;
-	private final PointReservationRepository pointReservationRepo;
-
-	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
-	private static final DateTimeFormatter YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
+	private final PaymentReservationProcessor reservationProcessor;
+	private final PaymentOutboxPublisher outboxPublisher;
 
 	@Transactional
 	public PaymentAttempt preparePayment(Long orderId, String idemKey) {
@@ -108,166 +73,31 @@ public class PaymentCommandService {
 		if(payment.isFinalized()) {
 			return PayResponse.of(order, payment);
 		}
-		if(pgResp.getStatus() == PaymentGatewayStatus.SUCCESS) {
-			if (!pgResp.getPaidAmount().equals(order.getPayAmount())) {
-				payment.paymentFailed(pgResp.getPgTransactionId(), "PAY_AMOUNT_MISMATCH");
-				order.failed();
-				// 예약 해제
-				releasePointReservations(order);
-				releaseInventoryReservations(order);
-				return PayResponse.of(order, payment);
-			}
-
-			// 결제 성공 기록
-			LocalDateTime paidAt = LocalDateTime.now();
-			payment.paymentSuccess(pgResp.getPgTransactionId(), paidAt);
-
-			// 예약 확정(재고/포인트사용/쿠폰)
-			confirmPointReservations(order);
-			confirmInventoryReservations(order);
-
-			order.paid();
-
-			// outbox 이벤트 insert
-			// 포인트 적립 outbox 이벤트
-			publishPointEarnOutbox(order, pgResp.getPgTransactionId());
-			// 인기상품증분 outbox 이벤트
-			publishPopularIncrementOutbox(order, paidAt);
-
-			return PayResponse.of(order, payment);
-		} else {
-			// 결제 실패 기록 + 예약 해제
-			payment.paymentFailed(pgResp.getPgTransactionId(), "PG_FAILED");
-
-			releasePointReservations(order);
-			releaseInventoryReservations(order);
-
-
-			order.failed();
-			return PayResponse.of(order, payment);
+		if (pgResp.getStatus() != PaymentGatewayStatus.SUCCESS) {
+			return failPayment(pgResp, payment, order, "PG_FAILED");
 		}
+		if (pgResp.getPaidAmount() == null || !pgResp.getPaidAmount().equals(order.getPayAmount())) {
+			return failPayment(pgResp, payment, order, "PAY_AMOUNT_MISMATCH");
+		}
+
+		return succeedPayment(pgResp, payment, order);
 	}
-	private void confirmPointReservations(Order order) {
-		if (order.getPointUsed() == 0) return;
-		// 포인트 사용 확정(간단 버전)
-		PointReservation pr = pointReservationRepo.findByOrderId(order.getId())
-			.orElseThrow(() ->
-				new PointReservationNotFoundException(ErrorCode.NOT_FOUND_POINT_RESERVATION, order.getId()));
-		if(pr.getStatus() == PointReserveStatus.CONFIRMED) return;
-		if(pr.getStatus() == PointReserveStatus.RELEASED) {
-			throw new IllegalArgumentException("Reservation already released. orderId = " + order.getId());
-		}
-		Point point = pointRepo.findByUserIdForUpdate(order.getUser().getId())
-			.orElseThrow(() -> new PointNotFoundException(ErrorCode.NOT_FOUND_POINT, order.getUser().getId()));
+	private PayResponse succeedPayment(PaymentGatewayResponse pgResp, Payment payment, Order order) {
+		LocalDateTime paidAt = LocalDateTime.now();
+		payment.paymentSuccess(pgResp.getPgTransactionId(), paidAt);
 
-		pr.confirm();
-		point.confirmUse(pr.getAmount());
+		reservationProcessor.confirm(order);
+		order.paid();
+		outboxPublisher.publishPaymentSuccess(order, pgResp.getPgTransactionId(), paidAt);
+
+		return PayResponse.of(order, payment);
 	}
 
-	private void confirmInventoryReservations(Order order) {
-		List<InventoryReservation> reserves = invReserveRepo
-			.findByOrderIdAndStatus(order.getId(), InventoryReserveStatus.RESERVED);
-		if (reserves.isEmpty()) return; // 멱등/재시도 안전
+	private PayResponse failPayment(PaymentGatewayResponse pgResp, Payment payment, Order order, String reason) {
+		payment.paymentFailed(pgResp.getPgTransactionId(), reason);
+		order.failed();
+		reservationProcessor.release(order, reason);
 
-		List<Long> invIds = reserves.stream().map(InventoryReservation::getInventoryId).sorted().toList();
-		List<Inventory> inventories = invRepo.findByIdsForUpdate(invIds);
-		Map<Long, Inventory> map = inventories.stream().collect(Collectors.toMap(Inventory::getId, it -> it));
-
-		for (InventoryReservation r : reserves) {
-			Inventory inv = map.get(r.getInventoryId());
-			inv.confirmReserve(r.getQty());
-			r.confirm();
-		}
-
-		// 쿠폰 확정도 같은 방식(RESERVED -> CONSUMED)
-	}
-
-	private void releasePointReservations(Order order) {
-		if (order.getPointUsed() == 0) return;
-
-		PointReservation pr = pointReservationRepo.findByOrderId(order.getId())
-			.orElseThrow(() ->
-				new PointReservationNotFoundException(ErrorCode.NOT_FOUND_POINT_RESERVATION, order.getId()));
-		if(pr.getStatus() == PointReserveStatus.RELEASED) return;
-		if(pr.getStatus() == PointReserveStatus.CONFIRMED) {
-			throw new IllegalArgumentException("Reservation already confirmed. orderId = " + order.getId());
-		}
-
-		Point point = pointRepo.findByUserIdForUpdate(order.getUser().getId())
-			.orElseThrow(() -> new PointNotFoundException(ErrorCode.NOT_FOUND_POINT, order.getUser().getId()));
-
-		pr.release("PAYMENT_FAILED");
-		point.releaseReserve(pr.getAmount());
-	}
-	private void releaseInventoryReservations(Order order) {
-		List<InventoryReservation> reserves = invReserveRepo
-			.findByOrderIdAndStatus(order.getId(), InventoryReserveStatus.RESERVED);
-		if (reserves.isEmpty()) return; // 멱등/재시도 안전
-
-		List<Long> invIds = reserves.stream().map(InventoryReservation::getInventoryId).sorted().toList();
-		List<Inventory> inventories = invRepo.findByIdsForUpdate(invIds);
-		Map<Long, Inventory> map = inventories.stream().collect(Collectors.toMap(Inventory::getId, it -> it));
-
-		// 실무에서는 InventoryReservation의 상태가 RESERVED에서 변경될 때만 실제 재고 차감
-		for(InventoryReservation r : reserves) {
-			Inventory inv = map.get(r.getInventoryId());
-			inv.releaseReserve(r.getQty());
-			r.release("PAYMENT_FAILED");
-		}
-	}
-
-	private void publishPointEarnOutbox(Order order, String pgTransactionId) {
-		PaymentCompletedPayload payload = PaymentCompletedPayload.of(
-			order.getUser().getId(),
-			order.getId(),
-			order.getPayAmount(),
-			pgTransactionId
-		);
-
-		String payloadJson;
-		try {
-			payloadJson = objectMapper.writeValueAsString(payload);
-		} catch (JsonProcessingException e) {
-			throw new RuntimeException("Failed to serialize outbox payload", e);
-		}
-		OutboxEvent outboxEvent = OutboxEvent.of(
-			AggregateType.ORDER,
-			order.getId(),
-			EventType.PAYMENT_COMPLETION_GIVE_POINT,
-			payloadJson
-		);
-		outboxEventRepository.save(outboxEvent);
-	}
-
-	private void publishPopularIncrementOutbox(Order order, LocalDateTime paidAt) {
-		// 1) 날짜 문자열 생성 (KST 기준)
-		String yyyymmdd = ZonedDateTime.of(paidAt, KST).format(YYYYMMDD);
-
-		// 2) 주문 아이템(productId, qty) 구성
-		List<PopularProductIncrementPayload.Item> items = order.getOrderProducts().stream()
-			.map(op -> new PopularProductIncrementPayload.Item(op.getProductId(), op.getQty()))
-			.toList();
-
-		PopularProductIncrementPayload payload = new PopularProductIncrementPayload(
-			order.getId(),
-			yyyymmdd,
-			items
-		);
-
-		String payloadJson;
-		try {
-			payloadJson = objectMapper.writeValueAsString(payload);
-		} catch (JsonProcessingException e) {
-			throw new RuntimeException("Failed to serialize popular increment payload", e);
-		}
-
-		OutboxEvent outboxEvent = OutboxEvent.of(
-			AggregateType.ORDER,
-			order.getId(),
-			EventType.ORDER_PAID_POPULAR_INCREMENT,
-			payloadJson
-		);
-
-		outboxEventRepository.save(outboxEvent);
+		return PayResponse.of(order, payment);
 	}
 }
