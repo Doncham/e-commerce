@@ -55,6 +55,8 @@ public class Payment extends BaseTimeEntity {
 	private String idempotencyKey;
 
 	private String failReason;
+	@Column(nullable = false)
+	private Long canceledAmount;
 
 	private Payment(Order order, Long amount, PaymentStatus status, String idemKey, String pgTransactionId, LocalDateTime processedAt) {
 		this.order = order;
@@ -63,6 +65,7 @@ public class Payment extends BaseTimeEntity {
 		this.idempotencyKey = idemKey;
 		this.pgTransactionId = pgTransactionId;
 		this.processedAt = processedAt;
+		this.canceledAmount = 0L;
 	}
 	public static Payment createPayment(Order order, String idemKey, Long amount) {
 		return new Payment(order, amount, PaymentStatus.REQUESTED, idemKey,null, null);
@@ -84,6 +87,24 @@ public class Payment extends BaseTimeEntity {
 
 	public boolean isFinalized() {
 		return this.status != PaymentStatus.REQUESTED;
+	}
+
+	public void cancelPartially(Long cancelAmount) {
+		this.canceledAmount += cancelAmount;
+		if (this.canceledAmount.equals(this.amount)) {
+			this.status = PaymentStatus.CANCELLED;
+		} else {
+			this.status = PaymentStatus.PARTIAL_CANCELED;
+		}
+	}
+
+	public void cancel(Long cancelAmount) {
+		this.canceledAmount += cancelAmount;
+		if (this.canceledAmount.equals(this.amount)) {
+			this.status = PaymentStatus.CANCELLED;
+		} else {
+			this.status = PaymentStatus.PARTIAL_CANCELED;
+		}
 	}
 
 }
