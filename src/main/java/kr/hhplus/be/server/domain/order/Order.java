@@ -124,7 +124,7 @@ public class Order extends BaseTimeEntity {
 
 	private long calculateItemTotal() {
 		return this.orderProducts.stream()
-			.mapToLong(OrderProduct::getItemTotalPrice)
+			.mapToLong(OrderProduct::getUnitPrice)
 			.sum();
 	}
 

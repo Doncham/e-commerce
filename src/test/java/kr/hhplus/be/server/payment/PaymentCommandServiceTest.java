@@ -6,6 +6,7 @@ import static org.mockito.Mockito.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,7 +17,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
-import kr.hhplus.be.server.application.order.OrderPort;
+import kr.hhplus.be.server.application.order.OrderRepository;
 import kr.hhplus.be.server.application.payment.PaymentCommandService;
 import kr.hhplus.be.server.application.payment.PaymentOutboxPublisher;
 import kr.hhplus.be.server.application.payment.PaymentReservationProcessor;
@@ -28,9 +29,10 @@ import kr.hhplus.be.server.domain.order.exception.OrderAlreadyPaidOrderException
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.payment.Payment;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
-import kr.hhplus.be.server.domain.payment.PaymentPort;
+
 import kr.hhplus.be.server.domain.payment.PaymentStatus;
 import kr.hhplus.be.server.domain.user.User;
+import kr.hhplus.be.server.infrastructure.persistence.payment.PaymentRepository;
 
 @ExtendWith(MockitoExtension.class)
 class PaymentCommandServiceTest {
@@ -39,10 +41,10 @@ class PaymentCommandServiceTest {
 	private PaymentCommandService paymentCommandService;
 
 	@Mock
-	private PaymentPort paymentPort;
+	private PaymentRepository paymentRepository;
 
 	@Mock
-	private OrderPort orderPort;
+	private OrderRepository orderRepository;
 
 	@Mock
 	private PaymentReservationProcessor reservationProcessor;
@@ -56,8 +58,8 @@ class PaymentCommandServiceTest {
 	private Order makeCreatedOrder(Long orderId, String idemKey) {
 		User user = mock(User.class);
 
-		OrderProduct p1 = OrderProduct.create(1L, "신발", 1000L, 2); // 2000
-		OrderProduct p2 = OrderProduct.create(2L, "모자", 500L, 1);  // 500
+		OrderProduct p1 = OrderProduct.create(1L, "신발", 1000L); // 2000
+		OrderProduct p2 = OrderProduct.create(2L, "모자", 500L);  // 500
 
 		Order order = Order.createDraft(user, shippingInfo, idemKey);
 		order.completeOrderDraft(List.of(p1, p2), 1L, 0L, "memo", 0L);
@@ -73,12 +75,12 @@ class PaymentCommandServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		Payment saved = Payment.createPayment(order, idemKey, order.getPayAmount());
 		ReflectionTestUtils.setField(saved, "id", 10L);
 
-		when(paymentPort.saveAndFlush(any(Payment.class))).thenReturn(saved);
+		when(paymentRepository.saveAndFlush(any(Payment.class))).thenReturn(saved);
 
 		// when
 		PaymentAttempt attempt = paymentCommandService.preparePayment(orderId, idemKey);
@@ -88,8 +90,8 @@ class PaymentCommandServiceTest {
 		assertEquals(order.getPayAmount(), attempt.getAmount());
 		assertEquals(idemKey, attempt.getIdempotencyKey());
 
-		verify(orderPort).loadOrderForUpdate(orderId);
-		verify(paymentPort).saveAndFlush(any(Payment.class));
+		verify(orderRepository).loadOrderForUpdate(orderId);
+		verify(paymentRepository).saveAndFlush(any(Payment.class));
 	}
 
 	@Test
@@ -100,14 +102,14 @@ class PaymentCommandServiceTest {
 		Order order = makeCreatedOrder(orderId, idemKey);
 		order.paid();
 
-		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		// when & then
 		assertThrows(OrderAlreadyPaidOrderException.class,
 			() -> paymentCommandService.preparePayment(orderId, idemKey));
 
-		verify(orderPort).loadOrderForUpdate(orderId);
-		verify(paymentPort, never()).saveAndFlush(any());
+		verify(orderRepository).loadOrderForUpdate(orderId);
+		verify(paymentRepository, never()).saveAndFlush(any());
 	}
 
 	@Test
@@ -120,8 +122,8 @@ class PaymentCommandServiceTest {
 		Payment payment = Payment.createPayment(order, idemKey, order.getPayAmount());
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
-		when(paymentPort.loadForUpdate(10L)).thenReturn(payment);
-		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
+		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-1",
@@ -158,8 +160,8 @@ class PaymentCommandServiceTest {
 		Payment payment = Payment.createPayment(order, idemKey, order.getPayAmount());
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
-		when(paymentPort.loadForUpdate(10L)).thenReturn(payment);
-		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
+		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-1",
@@ -196,8 +198,8 @@ class PaymentCommandServiceTest {
 		Payment payment = Payment.createPayment(order, idemKey, order.getPayAmount());
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
-		when(paymentPort.loadForUpdate(10L)).thenReturn(payment);
-		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
+		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-1",
@@ -234,8 +236,8 @@ class PaymentCommandServiceTest {
 		Payment payment = Payment.createPayment(order, idemKey, order.getPayAmount());
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
-		when(paymentPort.loadForUpdate(10L)).thenReturn(payment);
-		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
+		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-1",
@@ -272,8 +274,8 @@ class PaymentCommandServiceTest {
 		payment.paymentSuccess("tx-existing", LocalDateTime.now());
 		order.paid();
 
-		when(paymentPort.loadForUpdate(10L)).thenReturn(payment);
-		when(orderPort.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
+		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
 
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-new",

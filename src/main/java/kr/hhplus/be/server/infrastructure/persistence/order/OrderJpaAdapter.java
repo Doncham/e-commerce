@@ -7,13 +7,13 @@ import org.springframework.stereotype.Repository;
 import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.exception.OrderNotFoundException;
-import kr.hhplus.be.server.application.order.OrderPort;
+import kr.hhplus.be.server.application.order.OrderRepository;
 import lombok.RequiredArgsConstructor;
 
 @Repository
 @RequiredArgsConstructor
-public class OrderJpaAdapter implements OrderPort {
-	private final OrderRepository orderRepository;
+public class OrderJpaAdapter implements OrderRepository {
+	private final kr.hhplus.be.server.infrastructure.persistence.order.OrderRepository orderRepository;
 
 	@Override
 	public Order loadOrderForUpdate(Long orderId) {

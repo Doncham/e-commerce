@@ -22,7 +22,7 @@ public interface OrderProductRepository extends JpaRepository<OrderProduct, Long
 	// 매개변수로 from, to를 받아서 해당 기간에 주문된 내역으로만 평가
 	// OrderStatus가 PAID인 주문만 내역으로 평가
 	@Query("""
-  		select new kr.hhplus.be.server.application.product.ProductSoldQtyDTO(op.productId, SUM(op.qty)) 
+  		select new kr.hhplus.be.server.application.product.ProductSoldQtyDTO(op.productId, COUNT(op.productId)) 
 		from OrderProduct as op
 		join op.order o
 		join Product p on p.id = op.productId
@@ -32,7 +32,7 @@ public interface OrderProductRepository extends JpaRepository<OrderProduct, Long
 			and p.deletedAt is null
 			and p.isActive = true
 		group by op.productId
-		order by sum(op.qty) desc
+		order by count (op.productId) desc
 		""")
 	List<ProductSoldQtyDTO> findPopularProduct(
 		@Param("from") LocalDateTime from,

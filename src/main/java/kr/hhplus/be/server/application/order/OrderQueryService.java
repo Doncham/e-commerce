@@ -10,9 +10,9 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class OrderQueryService {
-	private OrderPort orderPort;
+	private OrderRepository orderRepository;
 	public OrderDraftCreateResponse findByUserIdAndKey(Long userId, String idempotencyKey){
-		Optional<Order> orderOpt = orderPort.findByUserIdAndIdempotencyKey(userId, idempotencyKey);
+		Optional<Order> orderOpt = orderRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey);
 		return OrderDraftCreateResponse.from(orderOpt.get());
 	}
 }

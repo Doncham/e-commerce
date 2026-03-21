@@ -7,13 +7,13 @@ import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.domain.payment.Payment;
 import kr.hhplus.be.server.domain.payment.PaymentStatus;
 import kr.hhplus.be.server.domain.payment.exception.PaidOrderHavePaymentException;
-import kr.hhplus.be.server.domain.payment.PaymentPort;
+import kr.hhplus.be.server.domain.payment.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 
 @Repository
 @RequiredArgsConstructor
-public class PaymentJpaAdapter implements PaymentPort {
-	private final PaymentRepository paymentRepository;
+public class PaymentJpaAdapter implements PaymentRepository {
+	private final kr.hhplus.be.server.infrastructure.persistence.payment.PaymentRepository paymentRepository;
 
 	@Override
 	public Payment save(Payment payment) {

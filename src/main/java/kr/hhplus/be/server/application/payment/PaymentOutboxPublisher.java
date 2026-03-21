@@ -50,7 +50,7 @@ public class PaymentOutboxPublisher {
 
 		// 2) 주문 아이템(productId, qty) 구성
 		List<PopularProductIncrementPayload.Item> items = order.getOrderProducts().stream()
-			.map(op -> new PopularProductIncrementPayload.Item(op.getProductId(), op.getQty()))
+			.map(op -> new PopularProductIncrementPayload.Item(op.getProductId()))
 			.toList();
 
 		PopularProductIncrementPayload payload = new PopularProductIncrementPayload(

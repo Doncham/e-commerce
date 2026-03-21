@@ -85,13 +85,9 @@ public class OrderCommandService implements OrderUseCase {
 	}
 
 	private static List<OrderProduct> createOrderProducts(List<CartItem> cartItems) {
-		List<OrderProduct> orderProducts = cartItems.stream().map(ci ->
-			OrderProduct.create(ci.getProduct().getId(),
-				ci.getProduct().getName(),
-				ci.getProduct().getPrice(),
-				ci.getQty()
-			)
-		).collect(Collectors.toList());
+		List<OrderProduct> orderProducts = cartItems.stream()
+			.flatMap(ci -> OrderProduct.createFromCartItem(ci).stream())
+		.collect(Collectors.toList());
 		return orderProducts;
 	}
 

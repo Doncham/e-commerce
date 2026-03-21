@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
-import kr.hhplus.be.server.application.order.OrderPort;
+import kr.hhplus.be.server.application.order.OrderRepository;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
 import kr.hhplus.be.server.domain.coupon.exception.CouponExpiredException;
 import kr.hhplus.be.server.domain.coupon.exception.InsufficientCouponStockException;
@@ -19,7 +19,8 @@ import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.exception.OrderAlreadyPaidOrderException;
 import kr.hhplus.be.server.domain.payment.Payment;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
-import kr.hhplus.be.server.domain.payment.PaymentPort;
+import kr.hhplus.be.server.domain.payment.exception.PaymentNotFoundException;
+import kr.hhplus.be.server.infrastructure.persistence.payment.PaymentRepository;
 import kr.hhplus.be.server.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,14 +29,14 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Slf4j
 public class PaymentCommandService {
-	private final PaymentPort paymentPort;
-	private final OrderPort orderPort;
+	private final PaymentRepository paymentRepo;
+	private final OrderRepository orderRepo;
 	private final PaymentReservationProcessor reservationProcessor;
 	private final PaymentOutboxPublisher outboxPublisher;
 
 	@Transactional
 	public PaymentAttempt preparePayment(Long orderId, String idemKey) {
-		Order order = orderPort.loadOrderForUpdate(orderId);
+		Order order = orderRepo.loadOrderForUpdate(orderId);
 
 		if(order.isPaid()) {
 			// 이미 성공 결제면 예외
@@ -43,7 +44,7 @@ public class PaymentCommandService {
 		}
 
 		Payment pending = Payment.createPayment(order, idemKey, order.getPayAmount());
-		pending = paymentPort.saveAndFlush(pending); // 유니크 충돌 빠르게 확정
+		pending = paymentRepo.saveAndFlush(pending); // 유니크 충돌 빠르게 확정
 
 		return PaymentAttempt.of(orderId, pending.getId(), pending.getAmount(), pending.getIdempotencyKey());
 	}
@@ -65,9 +66,11 @@ public class PaymentCommandService {
 		exceptionExpression = "@lockRetryPolicy.isMySqlLockWaitTimeout(#root)"
 	)
 	public PayResponse completePayment(Long paymentId, PaymentGatewayResponse pgResp) {
-		Payment payment = paymentPort.loadForUpdate(paymentId);
+		Payment payment = paymentRepo.findByIdForUpdate(paymentId)
+			.orElseThrow(() ->
+				new PaymentNotFoundException(ErrorCode.NOT_FOUNT_PAYMENT, paymentId));
 		// order 상태를 변경할거니까 락을 걸어서 조회하는건가?
-		Order order = orderPort.loadOrderForUpdate(payment.getOrder().getId());
+		Order order = orderRepo.loadOrderForUpdate(payment.getOrder().getId());
 
 		// 이미 처리된 결제면 멱등 반환
 		if(payment.isFinalized()) {
@@ -99,5 +102,14 @@ public class PaymentCommandService {
 		reservationProcessor.release(order, reason);
 
 		return PayResponse.of(order, payment);
+	}
+
+	@Transactional
+	public void getPaymentDetail(Long paymentId) {
+		// paymentId로
+		Payment payment = paymentRepo.findByIdForUpdate(paymentId)
+			.orElseThrow(() ->
+				new PaymentNotFoundException(ErrorCode.NOT_FOUNT_PAYMENT, paymentId));
+
 	}
 }

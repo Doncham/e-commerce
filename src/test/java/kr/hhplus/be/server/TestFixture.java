@@ -124,12 +124,11 @@ public final class TestFixture {
 	}
 
 	// ===== OrderProduct =====
-	public static OrderProduct orderProduct(Product product, long qty) {
+	public static OrderProduct orderProduct(Product product) {
 		return OrderProduct.create(
 			product.getId(),            // 주의: product가 아직 저장 전이면 id=null
 			product.getName(),
-			product.getPrice(),
-			qty
+			product.getPrice()
 		);
 	}
 
@@ -137,8 +136,8 @@ public final class TestFixture {
 	 * product 저장 전이라 id가 null일 수 있음.
 	 * 통합테스트에서는 보통 Product를 먼저 저장 후 그 id를 넣는게 맞다.
 	 */
-	public static OrderProduct orderProduct(Long productId, String productNameSnap, Long unitPrice, long qty) {
-		return OrderProduct.create(productId, productNameSnap, unitPrice, qty);
+	public static OrderProduct orderProduct(Long productId, String productNameSnap, Long unitPrice) {
+		return OrderProduct.create(productId, productNameSnap, unitPrice);
 	}
 
 	// ===== Order =====

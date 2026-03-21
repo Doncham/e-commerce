@@ -1,6 +1,8 @@
 package kr.hhplus.be.server.domain.orderproduct;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.IntStream;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -9,6 +11,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import kr.hhplus.be.server.domain.cartItem.CartItem;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.entity.BaseTimeEntity;
 import lombok.AccessLevel;
@@ -30,22 +33,35 @@ public class OrderProduct extends BaseTimeEntity{
 	private Long productId;
 	private String productNameSnap;
 	private Long unitPrice;
-	private long qty;
 
-	private OrderProduct(Long productId, String productNameSnap, Long unitPrice, long qty) {
+	private long canceledQty;
+	private Long allocatedCouponDiscount;
+	private Long allocatedPointUsed;
+
+
+	private OrderProduct(Long productId, String productNameSnap, Long unitPrice) {
 		this.productId = Objects.requireNonNull(productId);
 		this.productNameSnap = Objects.requireNonNull(productNameSnap);
 		this.unitPrice = Objects.requireNonNull(unitPrice);
-		if(qty <= 0) throw new IllegalArgumentException("qty must be greater than zero");
-		this.qty = qty;
 	}
-	public static OrderProduct create(Long productId, String productNameSnap, Long unitPrice, long qty) {
-		return new OrderProduct(productId, productNameSnap, unitPrice, qty);
+	public static OrderProduct create(Long productId, String productNameSnap, Long unitPrice) {
+		return new OrderProduct(productId, productNameSnap, unitPrice);
 	}
 	public void initOrder(Order order) {
 		this.order = order;
 	}
-	public Long getItemTotalPrice() {
-		return unitPrice * qty;
+
+	public static List<OrderProduct> createFromCartItem(CartItem cartItem) {
+		long qty = cartItem.getQty();
+		if (qty <= 0) {
+			throw new IllegalArgumentException("CartItem qty must be positive");
+		}
+		return IntStream.range(0, (int)qty)
+			.mapToObj(i -> OrderProduct.create(
+				cartItem.getProduct().getId(),
+				cartItem.getProduct().getName(),
+				cartItem.getProduct().getPrice()
+			))
+			.toList();
 	}
 }

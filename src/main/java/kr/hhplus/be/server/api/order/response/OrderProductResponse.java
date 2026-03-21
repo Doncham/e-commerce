@@ -23,7 +23,7 @@ public class OrderProductResponse {
 		return OrderProductResponse.builder()
 			.productId(op.getProductId())
 			.productName(op.getProductNameSnap())
-			.qty(op.getQty())
+			.qty(1L)
 			.unitPrice(op.getUnitPrice())
 			.build();
 	}

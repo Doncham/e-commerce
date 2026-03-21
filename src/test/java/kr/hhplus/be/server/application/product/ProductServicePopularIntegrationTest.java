@@ -56,10 +56,6 @@ class ProductServicePopularDbIntegrationTest {
 	// @MockitoBean RedissonClient redissonClient;
 	// @MockitoBean RLock rLock;
 
-	@BeforeEach
-	void forceDbPath() throws Exception {
-
-	}
 
 	@Test
 	void sevenDays_ranksBySoldQty_onlyPaidOrders() {
@@ -70,15 +66,13 @@ class ProductServicePopularDbIntegrationTest {
 		Product p2 = given.product("BBB", 20_000L);
 		Product p3 = given.product("CCC", 30_000L);
 
-		// o1: p1(5), p2(1)
 		Order o1 = given.paidOrderAt(LocalDateTime.now().minusDays(1));
-		given.orderItem(o1, p1, 5);
-		given.orderItem(o1, p2, 1);
+		given.orderItem(o1, p1);
+		given.orderItem(o1, p2);
 
-		// o2: p1(2), p3(10)
 		Order o2 = given.paidOrderAt(LocalDateTime.now().minusDays(2));
-		given.orderItem(o2, p1, 2);
-		given.orderItem(o2, p3, 10);
+		given.orderItem(o2, p1);
+		given.orderItem(o2, p3);
 
 		em.flush();
 		em.clear();
@@ -87,8 +81,8 @@ class ProductServicePopularDbIntegrationTest {
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
 
 		// then: p3(10), p1(7), p2(1)
-		assertThat(res.getItems()).extracting("productId").containsExactly(p3.getId(), p1.getId(), p2.getId());
-		assertThat(res.getItems()).extracting("soldQty").containsExactly(10L, 7L, 1L);
+		assertThat(res.getItems()).extracting("productId").containsExactly(p1.getId(), p2.getId(), p3.getId());
+		assertThat(res.getItems()).extracting("soldQty").containsExactly(2L, 1L, 1L);
 		assertThat(res.getItems()).extracting("rank").containsExactly(1, 2, 3);
 		assertThat(res.getRange()).isEqualTo("7d");
 		assertThat(res.getGeneratedAt()).isNotNull();
@@ -101,10 +95,10 @@ class ProductServicePopularDbIntegrationTest {
 		Product p1 = given.product("AAA", 10_000L);
 
 		Order paid = given.paidOrderAt(LocalDateTime.now().minusDays(1));
-		given.orderItem(paid, p1, 3);
+		given.orderItem(paid, p1);
 
 		Order notPaid = given.notPaidOrderAt(LocalDateTime.now().minusDays(1));
-		given.orderItem(notPaid, p1, 999);
+		given.orderItem(notPaid, p1);
 
 		em.flush();
 		em.clear();
@@ -115,7 +109,7 @@ class ProductServicePopularDbIntegrationTest {
 		// then
 		assertThat(res.getItems()).hasSize(1);
 		assertThat(res.getItems().get(0).getProductId()).isEqualTo(p1.getId());
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(3L);
+		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(1L);
 	}
 
 	@Test
@@ -125,11 +119,11 @@ class ProductServicePopularDbIntegrationTest {
 		Product p1 = given.product("AAA", 10_000L);
 
 		Order inRange = given.paidOrderAt(LocalDateTime.now().minusDays(1));
-		given.orderItem(inRange, p1, 2);
+		given.orderItem(inRange, p1);
 
 		// 40일 전 => 7d 범위 밖
 		Order outRange = given.paidOrderAt(LocalDateTime.now().minusDays(40));
-		given.orderItem(outRange, p1, 100);
+		given.orderItem(outRange, p1);
 
 		em.flush();
 		em.clear();
@@ -140,7 +134,7 @@ class ProductServicePopularDbIntegrationTest {
 		// then
 		assertThat(res.getItems()).hasSize(1);
 		assertThat(res.getItems().get(0).getProductId()).isEqualTo(p1.getId());
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(2L);
+		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(1L);
 	}
 
 	// =========================
@@ -178,8 +172,8 @@ class ProductServicePopularDbIntegrationTest {
 			return o;
 		}
 
-		void orderItem(Order order, Product p, long qty) {
-			OrderProduct op = TestFixture.orderProduct(p.getId(), p.getName(), p.getPrice(), qty);
+		void orderItem(Order order, Product p) {
+			OrderProduct op = TestFixture.orderProduct(p.getId(), p.getName(), p.getPrice());
 			op.initOrder(order);
 			orderProductRepository.save(op);
 		}

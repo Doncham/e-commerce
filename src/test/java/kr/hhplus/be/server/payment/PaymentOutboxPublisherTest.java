@@ -51,8 +51,8 @@ class PaymentOutboxPublisherTest {
 	private Order makeCreatedOrder(Long orderId, String idemKey) {
 		User user = mock(User.class);
 
-		OrderProduct p1 = OrderProduct.create(1L, "신발", 1000L, 2); // 2000
-		OrderProduct p2 = OrderProduct.create(2L, "모자", 500L, 1);  // 500
+		OrderProduct p1 = OrderProduct.create(1L, "신발", 1000L); // 2000
+		OrderProduct p2 = OrderProduct.create(2L, "모자", 500L);  // 500
 
 		Order order = Order.createDraft(user, shippingInfo, idemKey);
 		order.completeOrderDraft(List.of(p1, p2), 1L, 0L, "memo", 0L);
