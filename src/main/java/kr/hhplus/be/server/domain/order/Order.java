@@ -59,16 +59,14 @@ public class Order extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Long itemTotal;
 
-	private Long couponId; // user_coupon_id, 추적, null 가능
-
 	@Column(nullable = false)
-	private Long couponDiscount;
+	private Long couponDiscountTotal;
 	@Column(nullable = false)
 	private Long payAmount;
 	private String memo;
 	// 이것도 차감해줘야지
 	@Column(nullable = false)
-	private Long pointUsed;
+	private Long pointUsedTotal;
 	@Column(name="idempotency_key", nullable = false)
 	private String idempotencyKey;
 
@@ -84,18 +82,17 @@ public class Order extends BaseTimeEntity {
 		this.idempotencyKey = Objects.requireNonNull(idempotencyKey);
 		this.status = OrderStatus.DRAFT;
 		this.itemTotal = 0L;
-		this.couponDiscount = 0L;
+		this.couponDiscountTotal = 0L;
 		this.payAmount = 0L;
-		this.pointUsed = 0L;
+		this.pointUsedTotal = 0L;
 	}
 
 
 	public void completeOrderDraft(
 		List<OrderProduct> items,
-		Long couponId,
-		Long couponDiscount,
+		Long couponDiscountTotal,
 		String memo,
-		Long point
+		Long pointUsedTotal
 	) {
 		ensureDraftState();
 		// null, empty 체크
@@ -104,12 +101,23 @@ public class Order extends BaseTimeEntity {
 
 		// item 총 가격 계산
 		this.itemTotal = calculateItemTotal();
-		this.couponId = couponId;
-		this.couponDiscount = couponDiscount == null ? 0L : couponDiscount;
-		this.pointUsed = point == null ? 0L : point;
-		this.payAmount = Math.max(0L, this.itemTotal - this.couponDiscount - this.pointUsed);
+		this.couponDiscountTotal = couponDiscountTotal == null ? 0L : couponDiscountTotal;
+		this.pointUsedTotal = pointUsedTotal == null ? 0L : pointUsedTotal;
+		long payable = this.itemTotal - this.couponDiscountTotal - this.pointUsedTotal;
+		if (payable < 0) {
+			throw new IllegalStateException("payAmount cannot be negative");
+		}
+		this.payAmount = payable;
+
+		// 포인트 할당 검증
+		long allocatedPointTotal = calculateAllocatedPointTotal();
+		if (allocatedPointTotal != this.pointUsedTotal) {
+			throw new IllegalStateException("allocated pointUsedTotal sum mismatch");
+		}
+
 		this.memo = memo;
 		this.status = OrderStatus.CREATED;
+
 	}
 	private void ensureDraftState() {
 		if(this.status != OrderStatus.DRAFT){
@@ -144,4 +152,10 @@ public class Order extends BaseTimeEntity {
 		return this.status == OrderStatus.PAID;
 	}
 	// 쿠폰 추가
+
+	private long calculateAllocatedPointTotal() {
+		return this.orderProducts.stream()
+			.mapToLong(OrderProduct::getAllocatedPointUsed)
+			.sum();
+	}
 }

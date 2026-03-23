@@ -73,14 +73,18 @@ class OrderCommandServiceTest {
 			Cart cart = persist.saveAndFlush(cartRepo, TestFixture.cart(u));
 			CartItem cartItem1 = persist.save(cartItemRepo, TestFixture.cartItem(cart, p, 1));
 
+			OrderDraftCreateRequest.OrderDraftItemRequest item = TestFixture.orderDraftItemRequest(
+				cartItem1.getId(), null, 1L);
+
 			OrderDraftCreateRequest req = OrderDraftCreateRequest.builder()
 				.memo("주문" + i)
 				.userId(u.getId())
 				.addressId(addr.getId())
-				.cartId(cart.getId())
 				.pointUseAmount(0L)
 				.idempotencyKey(TestFixture.idemKey())
+				.items(List.of(item))
 				.build();
+
 			requests.add(req);
 		}
 

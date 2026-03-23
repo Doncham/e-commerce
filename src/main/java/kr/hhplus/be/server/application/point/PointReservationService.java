@@ -20,7 +20,7 @@ public class PointReservationService {
 	private final PointReservationRepository pointReservationRepo;
 
 	public void confirm(Order order) {
-		if (order.getPointUsed() == 0) return;
+		if (order.getPointUsedTotal() == 0) return;
 		// 포인트 사용 확정(간단 버전)
 		PointReservation pr = pointReservationRepo.findByOrderId(order.getId())
 			.orElseThrow(() ->
@@ -37,7 +37,7 @@ public class PointReservationService {
 	}
 
 	public void release(Order order, String reason) {
-		if (order.getPointUsed() == 0) return;
+		if (order.getPointUsedTotal() == 0) return;
 
 		PointReservation pr = pointReservationRepo.findByOrderId(order.getId())
 			.orElseThrow(() ->

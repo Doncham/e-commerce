@@ -44,6 +44,7 @@ public class OrderProduct extends BaseTimeEntity{
 	@Column(nullable = false)
 	private OrderProductStatus status;
 
+	@Column(nullable = true)
 	private Long appliedCouponId;
 	@Column(nullable = false)
 	private Long allocatedCouponDiscount;
@@ -53,16 +54,17 @@ public class OrderProduct extends BaseTimeEntity{
 	private LocalDateTime canceledAt;
 
 
-	private OrderProduct(Long productId, String productNameSnap, Long unitPrice) {
+	private OrderProduct(Long productId, String productNameSnap, Long unitPrice, Long couponId) {
 		this.productId = Objects.requireNonNull(productId);
 		this.productNameSnap = Objects.requireNonNull(productNameSnap);
 		this.unitPrice = Objects.requireNonNull(unitPrice);
+		this.appliedCouponId = couponId;
 		this.allocatedCouponDiscount = 0L;
 		this.allocatedPointUsed = 0L;
 		this.status = OrderProductStatus.ORDERED;
 	}
-	public static OrderProduct create(Long productId, String productNameSnap, Long unitPrice) {
-		return new OrderProduct(productId, productNameSnap, unitPrice);
+	public static OrderProduct create(Long productId, String productNameSnap, Long unitPrice, Long couponId) {
+		return new OrderProduct(productId, productNameSnap, unitPrice, couponId);
 	}
 	public void initOrder(Order order) {
 		this.order = order;
@@ -72,12 +74,6 @@ public class OrderProduct extends BaseTimeEntity{
 		return unitPrice - allocatedCouponDiscount - allocatedPointUsed;
 	}
 
-	public void allocateDiscount(Long couponDiscount, Long pointUsed, Long couponId) {
-		this.allocatedCouponDiscount = couponDiscount == null ? 0L : couponDiscount;
-		this.allocatedPointUsed = pointUsed == null ? 0L : pointUsed;
-		this.appliedCouponId = couponId;
-		// 여기서 쿠폰으로 할인되는 금액을 계산하는것도 나쁘지 않을듯
-	}
 	public void cancel(LocalDateTime canceledAt) {
 		if (!isCancelable()) {
 			throw new IllegalStateException("already canceled orderProductId=" + id);
@@ -91,17 +87,29 @@ public class OrderProduct extends BaseTimeEntity{
 	}
 
 
-	public static List<OrderProduct> createFromCartItem(CartItem cartItem) {
-		long qty = cartItem.getQty();
-		if (qty <= 0) {
-			throw new IllegalArgumentException("CartItem qty must be positive");
+	public static List<OrderProduct> createFromCartItem(CartItem cartItem, long orderQty, Long couponId) {
+
+		if (orderQty <= 0) {
+			throw new IllegalArgumentException("orderQty must be positive");
 		}
-		return IntStream.range(0, (int)qty)
+		return IntStream.range(0, (int) orderQty)
 			.mapToObj(i -> OrderProduct.create(
 				cartItem.getProduct().getId(),
 				cartItem.getProduct().getName(),
-				cartItem.getProduct().getPrice()
+				cartItem.getProduct().getPrice(),
+				// 이것도 포인트처럼 별도의 allocator로 처리하는게 좋다.(일단 쿠폰 정책 없으니까 유지)
+				couponId
 			))
 			.toList();
+	}
+
+	public void allocatePoint(long pointAmount) {
+		if (pointAmount < 0) {
+			throw new IllegalArgumentException("pointAmount must be >= 0");
+		}
+		if (pointAmount > this.unitPrice - this.allocatedCouponDiscount) {
+			throw new IllegalArgumentException("pointAmount cannot exceed unitPrice");
+		}
+		this.allocatedPointUsed = pointAmount;
 	}
 }

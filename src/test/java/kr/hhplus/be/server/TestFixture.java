@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
+import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cart.Cart;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
@@ -128,7 +129,8 @@ public final class TestFixture {
 		return OrderProduct.create(
 			product.getId(),            // 주의: product가 아직 저장 전이면 id=null
 			product.getName(),
-			product.getPrice()
+			product.getPrice(),
+			null
 		);
 	}
 
@@ -137,7 +139,11 @@ public final class TestFixture {
 	 * 통합테스트에서는 보통 Product를 먼저 저장 후 그 id를 넣는게 맞다.
 	 */
 	public static OrderProduct orderProduct(Long productId, String productNameSnap, Long unitPrice) {
-		return OrderProduct.create(productId, productNameSnap, unitPrice);
+		return OrderProduct.create(productId, productNameSnap, unitPrice, null);
+	}
+
+	public static OrderProduct orderProduct(Long productId, String productNameSnap, Long unitPrice, Long couponId) {
+		return OrderProduct.create(productId, productNameSnap, unitPrice, couponId);
 	}
 
 	// ===== Order =====
@@ -152,31 +158,29 @@ public final class TestFixture {
 	public static Order createdOrder(
 		User user,
 		ShippingInfo shippingInfo,
-		List<OrderProduct> items,
-		Long couponId,
-		Long couponDiscount,
-		String memo,
-		Long pointUsed
-	) {
-		Order order = Order.createDraft(user, shippingInfo, idemKey());
-		order.completeOrderDraft(items, couponId, couponDiscount, memo, pointUsed);
-		return order;
-	}
-
-	public static Order createdOrder(
-		User user,
-		ShippingInfo shippingInfo,
 		String orderIdemKey,
 		List<OrderProduct> items,
-		Long couponId,
 		Long couponDiscount,
 		String memo,
 		Long pointUsed
 	) {
 		Order order = Order.createDraft(user, shippingInfo, orderIdemKey);
-		order.completeOrderDraft(items, couponId, couponDiscount, memo, pointUsed);
+		order.completeOrderDraft(items, couponDiscount, memo, pointUsed);
 		return order;
 	}
+	public static OrderDraftCreateRequest.OrderDraftItemRequest orderDraftItemRequest(
+		Long cartItemId,
+		Long couponId,
+		Long orderQty
+	) {
+		return OrderDraftCreateRequest.OrderDraftItemRequest.builder()
+			.cartItemId(cartItemId)
+			.userCouponId(couponId)
+			.orderQty(orderQty)
+			.build();
+	}
+
+
 
 	// ==== cartItem ====
 	public static CartItem cartItem(

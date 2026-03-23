@@ -3,6 +3,8 @@ package kr.hhplus.be.server.application.order;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -91,15 +93,17 @@ class OrderFacadeTest {
 			.andExpect(jsonPath("$.balanceAfterChange").value(5000L))
 			.andDo(print());
 
+		OrderDraftCreateRequest.OrderDraftItemRequest items = TestFixture.orderDraftItemRequest(
+			cartItem1.getId(), null, 2L);
+
 		// 주문 api 호출 후 잔액 확인(point의 reserved 필드 변한거 검증하면 될듯)
 		OrderDraftCreateRequest orderRequest = OrderDraftCreateRequest.builder()
-			.cartId(cart.getId())
 			.addressId(addr.getId())
 			.memo("빠른 배송 부탁")
 			.userId(u.getId())
-			.couponId(null)
 			.pointUseAmount(3000L)
 			.idempotencyKey(TestFixture.idemKey())
+			.items(List.of(items))
 			.build();
 
 		String orderJson = objectMapper.writeValueAsString(orderRequest);

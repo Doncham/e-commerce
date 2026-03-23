@@ -49,7 +49,7 @@ class PointReservationServiceTest {
 	@Test
 	void confirm_whenPointUsedIsZero_thenDoNothing() {
 		// given
-		when(order.getPointUsed()).thenReturn(0L);
+		when(order.getPointUsedTotal()).thenReturn(0L);
 
 		// when
 		pointReservationService.confirm(order);
@@ -65,7 +65,7 @@ class PointReservationServiceTest {
 		Long userId = 10L;
 		Long reservedAmount = 3000L;
 
-		when(order.getPointUsed()).thenReturn(reservedAmount);
+		when(order.getPointUsedTotal()).thenReturn(reservedAmount);
 		when(order.getId()).thenReturn(orderId);
 		when(order.getUser()).thenReturn(user);
 
@@ -90,7 +90,7 @@ class PointReservationServiceTest {
 		// given
 		Long orderId = 1L;
 
-		when(order.getPointUsed()).thenReturn(1000L);
+		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
 		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.CONFIRMED);
@@ -109,7 +109,7 @@ class PointReservationServiceTest {
 		// given
 		Long orderId = 1L;
 
-		when(order.getPointUsed()).thenReturn(1000L);
+		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
 		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.RELEASED);
@@ -127,7 +127,7 @@ class PointReservationServiceTest {
 		// given
 		Long orderId = 1L;
 
-		when(order.getPointUsed()).thenReturn(1000L);
+		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
 		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.empty());
 
@@ -144,7 +144,7 @@ class PointReservationServiceTest {
 		Long orderId = 1L;
 		Long userId = 10L;
 
-		when(order.getPointUsed()).thenReturn(1000L);
+		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
 		when(order.getUser()).thenReturn(user);
 
@@ -164,7 +164,7 @@ class PointReservationServiceTest {
 	@Test
 	void release_whenPointUsedIsZero_thenDoNothing() {
 		// given
-		when(order.getPointUsed()).thenReturn(0L);
+		when(order.getPointUsedTotal()).thenReturn(0L);
 
 		// when
 		pointReservationService.release(order, "PAYMENT_FAILED");
@@ -180,7 +180,7 @@ class PointReservationServiceTest {
 		Long userId = 10L;
 		Long reservedAmount = 3000L;
 
-		when(order.getPointUsed()).thenReturn(reservedAmount);
+		when(order.getPointUsedTotal()).thenReturn(reservedAmount);
 		when(order.getId()).thenReturn(orderId);
 		when(order.getUser()).thenReturn(user);
 
@@ -205,7 +205,7 @@ class PointReservationServiceTest {
 		// given
 		Long orderId = 1L;
 
-		when(order.getPointUsed()).thenReturn(1000L);
+		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
 		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.RELEASED);
@@ -224,7 +224,7 @@ class PointReservationServiceTest {
 		// given
 		Long orderId = 1L;
 
-		when(order.getPointUsed()).thenReturn(1000L);
+		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
 		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.CONFIRMED);
