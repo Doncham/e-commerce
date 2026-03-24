@@ -23,7 +23,7 @@ public enum ErrorCode {
 	NOT_FOUND_POINT(HttpStatus.NOT_FOUND, "포인트 없음"),
 	NOT_FOUND_POINT_CHARGE(HttpStatus.NOT_FOUND, "포인트 충전 없음"),
 	NOT_FOUND_POINT_RESERVATION(HttpStatus.NOT_FOUND, "포인트 예약 없음"),
-	NOT_FOUNT_PAYMENT(HttpStatus.NOT_FOUND, "결제 정보 없음"),
+	NOT_FOUND_PAYMENT(HttpStatus.NOT_FOUND, "결제 정보 없음"),
 
 	// 409 Conflict (리소스 상태 충돌 / 중복 / 재고/한도 문제)
 	NOT_ENOUGH_POINT(HttpStatus.CONFLICT, "포인트 부족"),

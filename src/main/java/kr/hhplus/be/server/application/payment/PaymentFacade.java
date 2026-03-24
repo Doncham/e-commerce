@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class PaymentFacade implements PayUseCase{
-	private final PaymentCommandService command;
+	private final PaymentService command;
 	private final PaymentGatewayPort pgPort;
 	private final PaymentQueryService query;
 	public PayResponse pay(PayRequest req) {

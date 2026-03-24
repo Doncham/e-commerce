@@ -16,7 +16,7 @@ import kr.hhplus.be.server.api.payment.request.PayRequest;
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
-import kr.hhplus.be.server.application.payment.PaymentCommandService;
+import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.application.payment.PaymentFacade;
 import kr.hhplus.be.server.application.payment.PaymentQueryService;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
@@ -29,7 +29,7 @@ public class PaymentFacadeTest {
 	@InjectMocks
 	private PaymentFacade paymentFacade;
 	@Mock
-	private PaymentCommandService command;
+	private PaymentService command;
 	@Mock
 	private PaymentGatewayPort pgPort;
 	@Mock

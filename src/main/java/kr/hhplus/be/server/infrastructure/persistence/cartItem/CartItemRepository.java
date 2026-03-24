@@ -12,11 +12,6 @@ import kr.hhplus.be.server.domain.cartItem.CartItem;
 public interface CartItemRepository extends JpaRepository<CartItem, Long> {
 	List<CartItem> findByCartId(Long cartId);
 
-	@Query("SELECT ci "
-		+ "FROM CartItem ci "
-		+ "JOIN FETCH ci.product WHERE ci.id = :cartItemId")
-	CartItem findByCartItemIdWithProduct(Long cartItemId);
-
 	@Query("""
 		select ci
 		from CartItem ci

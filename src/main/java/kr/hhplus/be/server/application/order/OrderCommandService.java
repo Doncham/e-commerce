@@ -98,7 +98,6 @@ public class OrderCommandService implements OrderUseCase {
 			.map(OrderDraftCreateRequest.OrderDraftItemRequest::getCartItemId)
 			.toList();
 
-		// 이거 cart의 user까지 한번에 다 조회해야하는데 그건 어케하는거지?
 		List<CartItem> cartItems = cartItemRepo.findAllByIdInWithProductCartUser(cartItemIds);
 
 		if (cartItems.size() != cartItemIds.size()) {

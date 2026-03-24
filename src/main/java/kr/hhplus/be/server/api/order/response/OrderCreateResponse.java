@@ -51,7 +51,7 @@ public class OrderCreateResponse {
 			.createdAt(order.getCreatedAt())
 			.items(order.getOrderProducts().stream()
 				.map(OrderProductResponse::from)
-				.collect(Collectors.toList())
+				.toList()
 			)
 			.couponDiscount(order.getCouponDiscountTotal())
 			.pointUsedTotal(order.getPointUsedTotal())

@@ -50,7 +50,7 @@ public class Payment extends BaseTimeEntity {
 	@Column(nullable = true, unique = true)
 	private String pgTransactionId;
 
-	private LocalDateTime processedAt;
+	private LocalDateTime paidAt;
 	@Column(name = "idempotency_key", nullable = false)
 	private String idempotencyKey;
 
@@ -58,13 +58,13 @@ public class Payment extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Long canceledAmount;
 
-	private Payment(Order order, Long amount, PaymentStatus status, String idemKey, String pgTransactionId, LocalDateTime processedAt) {
+	private Payment(Order order, Long amount, PaymentStatus status, String idemKey, String pgTransactionId, LocalDateTime paidAt) {
 		this.order = order;
 		this.amount = amount;
 		this.status = status;
 		this.idempotencyKey = idemKey;
 		this.pgTransactionId = pgTransactionId;
-		this.processedAt = processedAt;
+		this.paidAt = paidAt;
 		this.canceledAmount = 0L;
 	}
 	public static Payment createPayment(Order order, String idemKey, Long amount) {
@@ -74,14 +74,14 @@ public class Payment extends BaseTimeEntity {
 	public void paymentSuccess(String pgTransactionId, LocalDateTime processedAt) {
 		this.status = PaymentStatus.SUCCESS;
 		this.pgTransactionId = pgTransactionId;
-		this.processedAt = processedAt;
+		this.paidAt = processedAt;
 	}
 
 	public void paymentFailed(String pgTransactionId, String reason) {
 		this.pgTransactionId = pgTransactionId;
 		this.status = PaymentStatus.FAILURE;
 		// 결제 실패니까 처리된게 아닌가? 규칙을 정하기 나름일듯
-		processedAt = null;
+		paidAt = null;
 		this.failReason = reason;
 	}
 
@@ -89,17 +89,16 @@ public class Payment extends BaseTimeEntity {
 		return this.status != PaymentStatus.REQUESTED;
 	}
 
-	public void cancelPartially(Long cancelAmount) {
-		this.canceledAmount += cancelAmount;
-		if (this.canceledAmount.equals(this.amount)) {
-			this.status = PaymentStatus.CANCELLED;
-		} else {
-			this.status = PaymentStatus.PARTIAL_CANCELED;
-		}
-	}
-
 	public void cancel(Long cancelAmount) {
-		this.canceledAmount += cancelAmount;
+		if (cancelAmount <= 0) {
+			throw new IllegalArgumentException("cancelAmount must be positive");
+		}
+		long nextCanceledAmount = this.canceledAmount + cancelAmount;
+		if (nextCanceledAmount > this.amount) {
+			throw new IllegalArgumentException("cancelAmount exceeds remaining amount");
+		}
+		this.canceledAmount = nextCanceledAmount;
+
 		if (this.canceledAmount.equals(this.amount)) {
 			this.status = PaymentStatus.CANCELLED;
 		} else {

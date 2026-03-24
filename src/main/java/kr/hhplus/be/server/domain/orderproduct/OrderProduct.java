@@ -1,5 +1,6 @@
 package kr.hhplus.be.server.domain.orderproduct;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -17,6 +18,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
 import kr.hhplus.be.server.domain.order.Order;
+import kr.hhplus.be.server.domain.paymentcancel.PaymentCancel;
 import kr.hhplus.be.server.entity.BaseTimeEntity;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -51,8 +53,9 @@ public class OrderProduct extends BaseTimeEntity{
 	@Column(nullable = false)
 	private Long allocatedPointUsed;
 
-	private LocalDateTime canceledAt;
-
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "payment_cancel_id")
+	private PaymentCancel paymentCancel;
 
 	private OrderProduct(Long productId, String productNameSnap, Long unitPrice, Long couponId) {
 		this.productId = Objects.requireNonNull(productId);
@@ -74,12 +77,11 @@ public class OrderProduct extends BaseTimeEntity{
 		return unitPrice - allocatedCouponDiscount - allocatedPointUsed;
 	}
 
-	public void cancel(LocalDateTime canceledAt) {
+	public void cancel(Clock clock) {
 		if (!isCancelable()) {
 			throw new IllegalStateException("already canceled orderProductId=" + id);
 		}
 		this.status = OrderProductStatus.CANCELED;
-		this.canceledAt = canceledAt;
 	}
 
 	public boolean isCancelable() {

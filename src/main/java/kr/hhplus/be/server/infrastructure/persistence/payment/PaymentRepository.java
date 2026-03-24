@@ -22,4 +22,14 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 	Optional<Payment> findByOrderIdAndIdempotencyKey(Long orderId, String idempotencyKey);
 
 	Long countByOrderIdAndIdempotencyKey(Long orderId, String idempotencyKey);
+
+	@Query("""
+		select p
+		from Payment p
+		join fetch p.order o
+		join fetch o.orderProducts op
+		left join fetch op.paymentCancel pc
+		where p.id = :paymentId
+""")
+	Optional<Payment> findByIdForPaymentDetailResponse(Long paymentId);
 }

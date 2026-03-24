@@ -18,7 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.application.order.OrderRepository;
-import kr.hhplus.be.server.application.payment.PaymentCommandService;
+import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.application.payment.PaymentOutboxPublisher;
 import kr.hhplus.be.server.application.payment.PaymentReservationProcessor;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
@@ -35,10 +35,10 @@ import kr.hhplus.be.server.domain.user.User;
 import kr.hhplus.be.server.infrastructure.persistence.payment.PaymentRepository;
 
 @ExtendWith(MockitoExtension.class)
-class PaymentCommandServiceTest {
+class PaymentServiceTest {
 
 	@InjectMocks
-	private PaymentCommandService paymentCommandService;
+	private PaymentService paymentService;
 
 	@Mock
 	private PaymentRepository paymentRepository;
@@ -83,7 +83,7 @@ class PaymentCommandServiceTest {
 		when(paymentRepository.saveAndFlush(any(Payment.class))).thenReturn(saved);
 
 		// when
-		PaymentAttempt attempt = paymentCommandService.preparePayment(orderId, idemKey);
+		PaymentAttempt attempt = paymentService.preparePayment(orderId, idemKey);
 
 		// then
 		assertEquals(10L, attempt.getPaymentId());
@@ -106,7 +106,7 @@ class PaymentCommandServiceTest {
 
 		// when & then
 		assertThrows(OrderAlreadyPaidOrderException.class,
-			() -> paymentCommandService.preparePayment(orderId, idemKey));
+			() -> paymentService.preparePayment(orderId, idemKey));
 
 		verify(orderRepository).loadOrderForUpdate(orderId);
 		verify(paymentRepository, never()).saveAndFlush(any());
@@ -134,7 +134,7 @@ class PaymentCommandServiceTest {
 		);
 
 		// when
-		PayResponse response = paymentCommandService.completePayment(10L, pgResp);
+		PayResponse response = paymentService.completePayment(10L, pgResp);
 
 		// then
 		assertEquals(OrderStatus.PAID, order.getStatus());
@@ -172,7 +172,7 @@ class PaymentCommandServiceTest {
 		);
 
 		// when
-		PayResponse response = paymentCommandService.completePayment(10L, pgResp);
+		PayResponse response = paymentService.completePayment(10L, pgResp);
 
 		// then
 		assertEquals(OrderStatus.FAILED, order.getStatus());
@@ -210,7 +210,7 @@ class PaymentCommandServiceTest {
 		);
 
 		// when
-		PayResponse response = paymentCommandService.completePayment(10L, pgResp);
+		PayResponse response = paymentService.completePayment(10L, pgResp);
 
 		// then
 		assertEquals(OrderStatus.FAILED, order.getStatus());
@@ -248,7 +248,7 @@ class PaymentCommandServiceTest {
 		);
 
 		// when
-		PayResponse response = paymentCommandService.completePayment(10L, pgResp);
+		PayResponse response = paymentService.completePayment(10L, pgResp);
 
 		// then
 		assertEquals(OrderStatus.FAILED, order.getStatus());
@@ -286,7 +286,7 @@ class PaymentCommandServiceTest {
 		);
 
 		// when
-		PayResponse response = paymentCommandService.completePayment(10L, pgResp);
+		PayResponse response = paymentService.completePayment(10L, pgResp);
 
 		// then
 		assertEquals(OrderStatus.PAID, order.getStatus());
