@@ -30,6 +30,7 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 		join fetch o.orderProducts op
 		left join fetch op.paymentCancel pc
 		where p.id = :paymentId
+		order by op.id asc
 """)
 	Optional<Payment> findByIdForPaymentDetailResponse(Long paymentId);
 }

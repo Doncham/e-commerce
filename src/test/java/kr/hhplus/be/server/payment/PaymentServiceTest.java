@@ -4,7 +4,10 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,7 +20,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
-import kr.hhplus.be.server.application.order.OrderRepository;
+
 import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.application.payment.PaymentOutboxPublisher;
 import kr.hhplus.be.server.application.payment.PaymentReservationProcessor;
@@ -32,6 +35,7 @@ import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
 
 import kr.hhplus.be.server.domain.payment.PaymentStatus;
 import kr.hhplus.be.server.domain.user.User;
+import kr.hhplus.be.server.infrastructure.persistence.order.OrderRepository;
 import kr.hhplus.be.server.infrastructure.persistence.payment.PaymentRepository;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,6 +58,8 @@ class PaymentServiceTest {
 
 	@Mock
 	private ShippingInfo shippingInfo;
+	@Mock
+	private Clock clock;
 
 	private Order makeCreatedOrder(Long orderId, String idemKey) {
 		User user = mock(User.class);
@@ -75,7 +81,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
 		Payment saved = Payment.createPayment(order, idemKey, order.getPayAmount());
 		ReflectionTestUtils.setField(saved, "id", 10L);
@@ -90,7 +96,7 @@ class PaymentServiceTest {
 		assertEquals(order.getPayAmount(), attempt.getAmount());
 		assertEquals(idemKey, attempt.getIdempotencyKey());
 
-		verify(orderRepository).loadOrderForUpdate(orderId);
+		verify(orderRepository).findByIdForUpdate(orderId);
 		verify(paymentRepository).saveAndFlush(any(Payment.class));
 	}
 
@@ -102,13 +108,13 @@ class PaymentServiceTest {
 		Order order = makeCreatedOrder(orderId, idemKey);
 		order.paid();
 
-		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
 		// when & then
 		assertThrows(OrderAlreadyPaidOrderException.class,
 			() -> paymentService.preparePayment(orderId, idemKey));
 
-		verify(orderRepository).loadOrderForUpdate(orderId);
+		verify(orderRepository).findByIdForUpdate(orderId);
 		verify(paymentRepository, never()).saveAndFlush(any());
 	}
 
@@ -123,7 +129,10 @@ class PaymentServiceTest {
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
-		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
+		when(clock.instant()).thenReturn(Instant.parse("2026-03-25T10:15:30Z"));
+		when(clock.getZone()).thenReturn(ZoneId.of("Asia/Seoul"));
+
 
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-1",
@@ -161,7 +170,7 @@ class PaymentServiceTest {
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
-		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-1",
@@ -199,7 +208,7 @@ class PaymentServiceTest {
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
-		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-1",
@@ -237,7 +246,7 @@ class PaymentServiceTest {
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
-		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-1",
@@ -275,7 +284,7 @@ class PaymentServiceTest {
 		order.paid();
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
-		when(orderRepository.loadOrderForUpdate(orderId)).thenReturn(order);
+		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-new",

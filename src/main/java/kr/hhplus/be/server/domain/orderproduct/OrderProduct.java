@@ -77,11 +77,12 @@ public class OrderProduct extends BaseTimeEntity{
 		return unitPrice - allocatedCouponDiscount - allocatedPointUsed;
 	}
 
-	public void cancel(Clock clock) {
+	public void cancel(Clock clock, PaymentCancel paymentCancel) {
 		if (!isCancelable()) {
 			throw new IllegalStateException("already canceled orderProductId=" + id);
 		}
 		this.status = OrderProductStatus.CANCELED;
+		this.paymentCancel = paymentCancel;
 	}
 
 	public boolean isCancelable() {

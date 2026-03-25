@@ -16,6 +16,7 @@ import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.ShippingInfo;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.payment.Payment;
+import kr.hhplus.be.server.domain.paymentcancel.PaymentCancel;
 import kr.hhplus.be.server.domain.point.Point;
 import kr.hhplus.be.server.domain.product.Product;
 import kr.hhplus.be.server.domain.user.User;
@@ -218,6 +219,11 @@ public final class TestFixture {
 		Payment p = Payment.createPayment(order, idemKey(), amount);
 		p.paymentFailed(pgTxId(), reason);
 		return p;
+	}
+
+	// ==== paymentCancel ====
+	public static PaymentCancel paymentCancel(Long paymentId, Long cancelAmount, String reason) {
+		return PaymentCancel.create(paymentId, cancelAmount, TestFixture.idemKey(), reason);
 	}
 
 	// ==== coupon ====
