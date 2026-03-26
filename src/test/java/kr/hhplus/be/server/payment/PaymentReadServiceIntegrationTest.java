@@ -84,7 +84,7 @@ public class PaymentReadServiceIntegrationTest {
 
 		// when
 		PaymentDetailResponse paymentDetail = paymentService.getPaymentDetail(paymentId);
-		List<PaymentDetailItemResponse> orderProducts = paymentDetail.getOrderProducts();
+		List<PaymentDetailItemResponse> orderProducts = paymentDetail.getOrderProductDetails();
 
 		// then
 		Assertions.assertEquals(payment.getId(), paymentDetail.getPaymentId());

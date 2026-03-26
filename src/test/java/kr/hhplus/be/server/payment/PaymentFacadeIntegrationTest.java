@@ -23,6 +23,7 @@ import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
 import kr.hhplus.be.server.api.payment.request.PayRequest;
 import kr.hhplus.be.server.api.point.request.PointChargeRequest;
 import kr.hhplus.be.server.application.outbox.OutboxProcessor;
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cart.Cart;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
@@ -135,7 +136,7 @@ public class PaymentFacadeIntegrationTest {
 		Assertions.assertEquals(3000L, reserved);
 		Assertions.assertEquals(inventoryAfterOrder.getReserved(), 2L);
 
-		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId());
+		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId(), PaymentGatewayType.TOSS);
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);
 
 		// 결제
@@ -219,7 +220,7 @@ public class PaymentFacadeIntegrationTest {
 
 		Order order = orderRepository.findByUserIdAndIdempotencyKey(u.getId(), orderRequest.getIdempotencyKey()).get();
 
-		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId());
+		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId(), PaymentGatewayType.TOSS);
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);
 
 		// 결제
@@ -306,7 +307,7 @@ public class PaymentFacadeIntegrationTest {
 
 		Order order = orderRepository.findByUserIdAndIdempotencyKey(u.getId(), orderRequest.getIdempotencyKey()).get();
 
-		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId());
+		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId(), PaymentGatewayType.TOSS);
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);
 
 		// 결제

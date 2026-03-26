@@ -6,6 +6,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cart.Cart;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
@@ -202,21 +203,21 @@ public final class TestFixture {
 
 	// ===== Payment =====
 	public static Payment requestedPayment(Order order, Long amount) {
-		return Payment.createPayment(order, idemKey(), amount);
+		return Payment.createPayment(order, idemKey(), amount, PaymentGatewayType.TOSS);
 	}
 
 	public static Payment requestedPayment(Order order, String paymentIdemKey, Long amount) {
-		return Payment.createPayment(order, paymentIdemKey, amount);
+		return Payment.createPayment(order, paymentIdemKey, amount, PaymentGatewayType.TOSS);
 	}
 
 	public static Payment successPayment(Order order, Long amount) {
-		Payment p = Payment.createPayment(order, idemKey(), amount);
+		Payment p = Payment.createPayment(order, idemKey(), amount,PaymentGatewayType.TOSS);
 		p.paymentSuccess(pgTxId(), now());
 		return p;
 	}
 
 	public static Payment failedPayment(Order order, Long amount, String reason) {
-		Payment p = Payment.createPayment(order, idemKey(), amount);
+		Payment p = Payment.createPayment(order, idemKey(), amount,PaymentGatewayType.TOSS);
 		p.paymentFailed(pgTxId(), reason);
 		return p;
 	}

@@ -20,6 +20,7 @@ import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.application.payment.PaymentFacade;
 import kr.hhplus.be.server.application.payment.PaymentQueryService;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.domain.order.exception.OrderAlreadyPaidOrderException;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
@@ -43,7 +44,7 @@ public class PaymentFacadeTest {
 		Long paymentId = 10L;
 		Long amount = 2500L;
 
-		PayRequest req = PayRequest.of(idemKey, orderId);
+		PayRequest req = PayRequest.of(idemKey, orderId, PaymentGatewayType.TOSS);
 
 		PaymentAttempt attempt = PaymentAttempt.of(orderId, paymentId, amount, idemKey);
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.SUCCESS, amount, null, null);
@@ -55,7 +56,7 @@ public class PaymentFacadeTest {
 
 		when(command.preparePayment(orderId, idemKey)).thenReturn(attempt);
 		when(pgPort.requestPayment(any())).thenReturn(pgResp);
-		when(command.completePayment(paymentId, pgResp)).thenReturn(expected);
+		when(command.completePayment(paymentId, pgResp, PaymentGatewayType.TOSS)).thenReturn(expected);
 
 		// when
 		PayResponse res = paymentFacade.pay(req);
@@ -73,7 +74,7 @@ public class PaymentFacadeTest {
 		Assertions.assertEquals(amount, sent.getAmount());
 		Assertions.assertEquals(idemKey, sent.getIdempotencyKey());
 
-		inOrder.verify(command).completePayment(paymentId, pgResp);
+		inOrder.verify(command).completePayment(paymentId, pgResp, PaymentGatewayType.TOSS);
 
 		verify(query, never()).findPayResult(any(), any());
 	}
@@ -83,7 +84,7 @@ public class PaymentFacadeTest {
 		// given
 		Long orderId = 1L;
 		String idemKey = "idem-123";
-		PayRequest req = PayRequest.of(idemKey, orderId);
+		PayRequest req = PayRequest.of(idemKey, orderId, PaymentGatewayType.TOSS);
 
 		when(command.preparePayment(orderId, idemKey)).thenThrow(new DataIntegrityViolationException("dup"));
 		PayResponse fallback = PayResponse.builder().orderId(orderId).message("fallback").build();
@@ -95,7 +96,7 @@ public class PaymentFacadeTest {
 		// then
 		assertSame(fallback, res);
 		verify(pgPort, never()).requestPayment(any());
-		verify(command, never()).completePayment(any(), any());
+		verify(command, never()).completePayment(any(), any(), any());
 		verify(query).findPayResult(orderId, idemKey);
 	}
 
@@ -104,7 +105,7 @@ public class PaymentFacadeTest {
 		// given
 		Long orderId = 1L;
 		String idemKey = "idem-123";
-		PayRequest req = PayRequest.of(idemKey, orderId);
+		PayRequest req = PayRequest.of(idemKey, orderId,PaymentGatewayType.TOSS);
 
 		when(command.preparePayment(orderId, idemKey))
 			.thenThrow(mock(OrderAlreadyPaidOrderException.class));
@@ -118,7 +119,7 @@ public class PaymentFacadeTest {
 		// then
 		assertSame(fallback, res);
 		verify(pgPort, never()).requestPayment(any());
-		verify(command, never()).completePayment(any(), any());
+		verify(command, never()).completePayment(any(), any(),any());
 	}
 }
 

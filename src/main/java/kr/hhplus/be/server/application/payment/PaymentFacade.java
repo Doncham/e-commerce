@@ -38,6 +38,6 @@ public class PaymentFacade implements PayUseCase{
 		);
 
 		// tx2: 결과 반영 + 확정/해제 + outbox
-		return command.completePayment(pending.getPaymentId(), pgResp);
+		return command.completePayment(pending.getPaymentId(), pgResp, req.getGatewayType());
 	}
 }

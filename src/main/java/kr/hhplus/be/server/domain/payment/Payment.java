@@ -14,6 +14,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.entity.BaseTimeEntity;
 import kr.hhplus.be.server.domain.order.Order;
 import lombok.AccessLevel;
@@ -58,7 +59,11 @@ public class Payment extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Long canceledAmount;
 
-	private Payment(Order order, Long amount, PaymentStatus status, String idemKey, String pgTransactionId, LocalDateTime paidAt) {
+	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
+	private PaymentGatewayType gatewayType;
+
+	private Payment(Order order, Long amount, PaymentStatus status, String idemKey, String pgTransactionId, LocalDateTime paidAt, PaymentGatewayType gatewayType) {
 		this.order = order;
 		this.amount = amount;
 		this.status = status;
@@ -66,9 +71,10 @@ public class Payment extends BaseTimeEntity {
 		this.pgTransactionId = pgTransactionId;
 		this.paidAt = paidAt;
 		this.canceledAmount = 0L;
+		this.gatewayType = gatewayType;
 	}
-	public static Payment createPayment(Order order, String idemKey, Long amount) {
-		return new Payment(order, amount, PaymentStatus.REQUESTED, idemKey,null, null);
+	public static Payment createPayment(Order order, String idemKey, Long amount, PaymentGatewayType gatewayType) {
+		return new Payment(order, amount, PaymentStatus.REQUESTED, idemKey,null, null, gatewayType);
 	}
 
 	public void paymentSuccess(String pgTransactionId, LocalDateTime processedAt) {
@@ -89,7 +95,7 @@ public class Payment extends BaseTimeEntity {
 		return this.status != PaymentStatus.REQUESTED;
 	}
 
-	public void cancel(Long cancelAmount) {
+	public void cancelAmount(Long cancelAmount) {
 		if (cancelAmount <= 0) {
 			throw new IllegalArgumentException("cancelAmount must be positive");
 		}

@@ -27,10 +27,10 @@ import kr.hhplus.be.server.FixturePersist;
 import kr.hhplus.be.server.TestFixture;
 import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
 import kr.hhplus.be.server.api.payment.request.PayRequest;
-import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.api.point.request.PointChargeRequest;
 import kr.hhplus.be.server.application.payment.PaymentFacade;
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cart.Cart;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
@@ -171,7 +171,7 @@ public class PaymentIdempIntegrationTest {
 		Assertions.assertEquals(3000L, reserved);
 		Assertions.assertEquals(inventoryAfterOrder.getReserved(), 2L);
 		String payIdemKey = TestFixture.idemKey();
-		PayRequest payRequest = PayRequest.of(payIdemKey, order.getId());
+		PayRequest payRequest = PayRequest.of(payIdemKey, order.getId(), PaymentGatewayType.TOSS);
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);
 
 		PaymentGatewayResponse pgRes = PaymentGatewayResponse.of(TestFixture.pgTxId(),

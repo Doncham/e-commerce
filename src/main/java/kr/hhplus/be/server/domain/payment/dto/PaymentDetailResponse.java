@@ -20,7 +20,7 @@ public class PaymentDetailResponse {
 	private final Long cancelableAmount;
 	private final LocalDateTime paidAt;
 	private final String pgTransactionId;
-	private final List<PaymentDetailItemResponse> orderProducts;
+	private final List<PaymentDetailItemResponse> orderProductDetails;
 
 	@Builder
 	private PaymentDetailResponse(
@@ -33,7 +33,7 @@ public class PaymentDetailResponse {
 		Long cancelableAmount,
 		LocalDateTime paidAt,
 		String pgTransactionId,
-		List<PaymentDetailItemResponse> orderProducts
+		List<PaymentDetailItemResponse> orderProductDetails
 	) {
 		this.orderStatus = orderStatus;
 		this.paymentId = paymentId;
@@ -44,7 +44,7 @@ public class PaymentDetailResponse {
 		this.cancelableAmount = cancelableAmount;
 		this.paidAt = paidAt;
 		this.pgTransactionId = pgTransactionId;
-		this.orderProducts = orderProducts;
+		this.orderProductDetails = orderProductDetails;
 	}
 
 	// payment 조회할 때 order fetch Join할거임.(orderProduct도)
@@ -60,7 +60,7 @@ public class PaymentDetailResponse {
 			.cancelableAmount(payment.getAmount() - payment.getCanceledAmount())
 			.paidAt(payment.getPaidAt())
 			.pgTransactionId(payment.getPgTransactionId())
-			.orderProducts(PaymentDetailItemResponse.create(payment.getOrder().getOrderProducts()))
+			.orderProductDetails(PaymentDetailItemResponse.create(payment.getOrder().getOrderProducts()))
 			.build();
 	}
 }
