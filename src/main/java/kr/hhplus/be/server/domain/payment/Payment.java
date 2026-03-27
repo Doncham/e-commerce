@@ -15,8 +15,8 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
-import kr.hhplus.be.server.entity.BaseTimeEntity;
 import kr.hhplus.be.server.domain.order.Order;
+import kr.hhplus.be.server.entity.BaseTimeEntity;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -93,6 +93,9 @@ public class Payment extends BaseTimeEntity {
 
 	public boolean isFinalized() {
 		return this.status != PaymentStatus.REQUESTED;
+	}
+	public boolean canStartCancel() {
+		return this.status == PaymentStatus.SUCCESS || this.status == PaymentStatus.PARTIAL_CANCELED;
 	}
 
 	public void cancelAmount(Long cancelAmount) {

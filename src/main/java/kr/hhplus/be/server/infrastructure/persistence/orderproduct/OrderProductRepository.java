@@ -6,13 +6,16 @@ import java.util.List;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
 import kr.hhplus.be.server.application.product.ProductSoldQtyDTO;
 import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
+import kr.hhplus.be.server.domain.orderproduct.OrderProductStatus;
 
 @Repository
 public interface OrderProductRepository extends JpaRepository<OrderProduct, Long> {
@@ -41,4 +44,19 @@ public interface OrderProductRepository extends JpaRepository<OrderProduct, Long
 		Pageable pageRequest
 	);
 
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+		select op 
+		from OrderProduct op
+		where op.id in :orderProductIds
+""")
+	List<OrderProduct> findByIds(@Param("orderProductIds") List<Long> orderProductIds);
+
+	@Query("""
+		select op
+		from OrderProduct op
+		where op.order.id = :orderId and op.status = :status 
+""")
+	List<OrderProduct> findCancelableByOrderId(@Param("orderId") Long orderId,
+		@Param("status") OrderProductStatus status);
 }

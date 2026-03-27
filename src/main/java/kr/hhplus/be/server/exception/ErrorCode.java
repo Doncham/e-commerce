@@ -35,8 +35,10 @@ public enum ErrorCode {
 	ALREADY_PAID_ORDER(HttpStatus.CONFLICT, "이미 결제됨(주문)"),
 
 	// 429 Too Many Request (락 획득 실패)
-	COUPON_ISSUE_BUSY(HttpStatus.TOO_MANY_REQUESTS, "쿠폰 발급락 획득 실패");
+	COUPON_ISSUE_BUSY(HttpStatus.TOO_MANY_REQUESTS, "쿠폰 발급락 획득 실패"),
 
+	// 503 Service Unavailable, 외부 결제 시스템 일시 장애
+	PAYMENT_CANCEL_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "PG payment cancel 실패");
 
 
 	private final HttpStatus status;

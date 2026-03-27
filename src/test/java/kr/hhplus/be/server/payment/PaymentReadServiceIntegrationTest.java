@@ -76,7 +76,7 @@ public class PaymentReadServiceIntegrationTest {
 
 		Payment payment = persist.saveAndFlush(paymentRepo, TestFixture.successPayment(order, 25000L));
 		Long paymentId = payment.getId();
-		PaymentCancel paymentCancel = TestFixture.paymentCancel(paymentId, 5000L, "변심");
+		PaymentCancel paymentCancel = TestFixture.paymentCancel(paymentId, 5000L, "변심", "fp");
 		persist.save(paymentCancelRepo, paymentCancel);
 		op1.cancel(clock, paymentCancel);
 

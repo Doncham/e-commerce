@@ -151,6 +151,14 @@ public class Order extends BaseTimeEntity {
 	public boolean isPaid() {
 		return this.status == OrderStatus.PAID;
 	}
+	public boolean canCancelAnyProduct() {
+		if(this.status == OrderStatus.PAID)
+			return true;
+		if(this.status == OrderStatus.PARTIAL_CANCELED)
+			return true;
+		else
+			return false;
+	}
 	// 쿠폰 추가
 
 	private long calculateAllocatedPointTotal() {
