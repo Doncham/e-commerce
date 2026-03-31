@@ -8,7 +8,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import kr.hhplus.be.server.api.point.request.PointChargeRequest;
 import kr.hhplus.be.server.api.point.response.PointChargeResponse;
-import kr.hhplus.be.server.application.point.PointCommandService;
 import kr.hhplus.be.server.application.point.PointFacade;
 import lombok.RequiredArgsConstructor;
 

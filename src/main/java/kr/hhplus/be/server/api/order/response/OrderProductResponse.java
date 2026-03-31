@@ -3,7 +3,6 @@ package kr.hhplus.be.server.api.order.response;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Getter
 public class OrderProductResponse {
@@ -36,7 +35,7 @@ public class OrderProductResponse {
 			.unitPrice(op.getUnitPrice())
 			.allocatedCouponDiscount(op.getAllocatedCouponDiscount())
 			.allocatedPointUsed(op.getAllocatedPointUsed())
-			.netPaidAmount(op.getNetPaidAmount())
+			.netPaidAmount(op.getCancelableAmount())
 			.build();
 	}
 }

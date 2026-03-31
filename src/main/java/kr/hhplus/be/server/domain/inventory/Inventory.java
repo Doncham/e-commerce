@@ -61,4 +61,7 @@ public class Inventory extends BaseTimeEntity {
 		reserved -= qty;
 		stock -= qty;
 	}
+	public void restoreOne() {
+		stock++;
+	}
 }
