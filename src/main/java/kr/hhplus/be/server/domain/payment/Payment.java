@@ -25,10 +25,17 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(
-	uniqueConstraints = @UniqueConstraint(
-		name = "ux_orderId_and_idempotencyKey",
-		columnNames = {"order_id", "idempotency_key"}
-	)
+	uniqueConstraints = {
+		@UniqueConstraint(
+			name = "ux_orderId_and_idempotencyKey",
+			columnNames = {"order_id", "idempotency_key"
+		}),
+		@UniqueConstraint(
+			name = "ux_payment_pg_transaction_id",
+			columnNames = "pg_transaction_id"
+		)
+
+	}
 )
 public class Payment extends BaseTimeEntity {
 	@Id
@@ -48,7 +55,7 @@ public class Payment extends BaseTimeEntity {
 	@Column(nullable = false)
 	private PaymentStatus status;
 
-	@Column(nullable = true, unique = true)
+	@Column(nullable = true)
 	private String pgTransactionId;
 
 	private LocalDateTime paidAt;
@@ -78,13 +85,18 @@ public class Payment extends BaseTimeEntity {
 	}
 
 	public void paymentSuccess(String pgTransactionId, LocalDateTime processedAt) {
+		if(this.status != PaymentStatus.REQUESTED) {
+			throw new IllegalArgumentException("paymentStatus가 REQUESTED가 아닙니다. paymentId = " + this.id);
+		}
 		this.status = PaymentStatus.SUCCESS;
 		this.pgTransactionId = pgTransactionId;
 		this.paidAt = processedAt;
 	}
 
-	public void paymentFailed(String pgTransactionId, String reason) {
-		this.pgTransactionId = pgTransactionId;
+	public void paymentFailed(String reason) {
+		if(this.status != PaymentStatus.REQUESTED) {
+			throw new IllegalArgumentException("paymentStatus가 REQUESTED가 아닙니다. paymentId = " + this.id);
+		}
 		this.status = PaymentStatus.FAILURE;
 		// 결제 실패니까 처리된게 아닌가? 규칙을 정하기 나름일듯
 		paidAt = null;
@@ -98,7 +110,11 @@ public class Payment extends BaseTimeEntity {
 		return this.status == PaymentStatus.SUCCESS || this.status == PaymentStatus.PARTIAL_CANCELED;
 	}
 
-	public void cancelAmount(Long cancelAmount) {
+	public void applyCancel(Long cancelAmount) {
+		if (this.status != PaymentStatus.SUCCESS && this.status != PaymentStatus.PARTIAL_CANCELED) {
+			throw new IllegalStateException("paymentStatus가 SUCCESS or PARTIAL_CANCELED가 아닙니다. paymentId = " + this.id);
+		}
+
 		if (cancelAmount <= 0) {
 			throw new IllegalArgumentException("cancelAmount must be positive");
 		}
@@ -106,13 +122,22 @@ public class Payment extends BaseTimeEntity {
 		if (nextCanceledAmount > this.amount) {
 			throw new IllegalArgumentException("cancelAmount exceeds remaining amount");
 		}
+
 		this.canceledAmount = nextCanceledAmount;
 
 		if (this.canceledAmount.equals(this.amount)) {
-			this.status = PaymentStatus.CANCELLED;
+			cancel();
 		} else {
-			this.status = PaymentStatus.PARTIAL_CANCELED;
+			partialCancel();
 		}
+	}
+
+	private void cancel() {
+		this.status = PaymentStatus.CANCELLED;
+	}
+
+	private void partialCancel() {
+		this.status = PaymentStatus.PARTIAL_CANCELED;
 	}
 
 }

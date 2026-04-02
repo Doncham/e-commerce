@@ -78,7 +78,7 @@ public class PaymentReadServiceIntegrationTest {
 		Long paymentId = payment.getId();
 		PaymentCancel paymentCancel = TestFixture.paymentCancel(paymentId, 5000L, "변심", "fp");
 		persist.save(paymentCancelRepo, paymentCancel);
-		op1.cancel(clock, paymentCancel);
+		op1.cancel(paymentCancel);
 
 		// payment.cancel();
 

@@ -63,7 +63,7 @@ public class PaymentDetailItemResponse {
 			.orderProductStatus(op.getStatus())
 			.allocatedCouponDiscount(op.getAllocatedCouponDiscount())
 			.allocatedPointUsed(op.getAllocatedPointUsed())
-			.netPaidAmount(op.getNetPaidAmount())
+			.netPaidAmount(op.getCancelableAmount())
 			.canceledAt(paymentCancel != null ? paymentCancel.getCanceledAt() : null)
 			.cancelReason(paymentCancel != null ? paymentCancel.getReason() : null)
 			.build();

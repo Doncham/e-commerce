@@ -71,7 +71,7 @@ public class Order extends BaseTimeEntity {
 	private String idempotencyKey;
 
 	@OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-	private List<OrderProduct> orderProducts = new ArrayList<>();
+	private List<OrderProduct> orderProducts;
 
 	public static Order createDraft(User user, ShippingInfo shippingInfo, String idempotencyKey) {
 		return new Order(user, shippingInfo, idempotencyKey);
@@ -85,6 +85,7 @@ public class Order extends BaseTimeEntity {
 		this.couponDiscountTotal = 0L;
 		this.payAmount = 0L;
 		this.pointUsedTotal = 0L;
+		this.orderProducts = new ArrayList<>();
 	}
 
 
@@ -152,18 +153,23 @@ public class Order extends BaseTimeEntity {
 		return this.status == OrderStatus.PAID;
 	}
 	public boolean canCancelAnyProduct() {
-		if(this.status == OrderStatus.PAID)
-			return true;
-		if(this.status == OrderStatus.PARTIAL_CANCELED)
-			return true;
-		else
-			return false;
+		return this.status == OrderStatus.PAID || this.status == OrderStatus.PARTIAL_CANCELED;
 	}
-	// 쿠폰 추가
 
 	private long calculateAllocatedPointTotal() {
 		return this.orderProducts.stream()
 			.mapToLong(OrderProduct::getAllocatedPointUsed)
 			.sum();
+	}
+	public void applyCancelResult(boolean fullyCanceled) {
+		if (this.status != OrderStatus.PAID && this.status != OrderStatus.PARTIAL_CANCELED) {
+			throw new IllegalStateException("취소 결과를 반영할 수 없는 주문 상태입니다. status=" + this.status);
+		}
+
+		if (fullyCanceled) {
+			this.status = OrderStatus.CANCELED;
+		} else {
+			this.status = OrderStatus.PARTIAL_CANCELED;
+		}
 	}
 }

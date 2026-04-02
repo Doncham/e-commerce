@@ -16,7 +16,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.hhplus.be.server.application.point.PointCommandService;
+import kr.hhplus.be.server.application.point.PointService;
 import kr.hhplus.be.server.domain.outbox.AggregateType;
 import kr.hhplus.be.server.domain.outbox.EventType;
 import kr.hhplus.be.server.domain.outbox.OutboxEvent;
@@ -29,7 +29,7 @@ class OutboxProcessorTest {
 	@InjectMocks
 	private OutboxProcessor outboxProcessor;
 	@Mock
-	private PointCommandService pointService;
+	private PointService pointService;
 	@Mock
 	private OutboxEventRepository outboxEventRepository;
 	@Mock

@@ -218,7 +218,7 @@ public final class TestFixture {
 
 	public static Payment failedPayment(Order order, Long amount, String reason) {
 		Payment p = Payment.createPayment(order, idemKey(), amount,PaymentGatewayType.TOSS);
-		p.paymentFailed(pgTxId(), reason);
+		p.paymentFailed(reason);
 		return p;
 	}
 

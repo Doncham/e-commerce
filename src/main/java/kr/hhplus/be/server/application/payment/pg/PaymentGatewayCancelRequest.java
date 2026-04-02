@@ -1,7 +1,6 @@
 package kr.hhplus.be.server.application.payment.pg;
 
-import kr.hhplus.be.server.domain.payment.CancelType;
-import kr.hhplus.be.server.application.payment.dto.CancelCommand;
+import kr.hhplus.be.server.domain.payment.dto.PaymentCancelJob;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -9,15 +8,22 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 public class PaymentGatewayCancelRequest {
-	private String paymentKey; // PG 쪽 원결제 식별자
-	private String merchantOrderId; // 우리 주문 식별자 현재: orderId, 미래: ORD-20260326-000123 이런 식별자
-	private String cancelIdempotencyKey;
+	private String paymentKey;            // PG 원결제 식별자
+	private String merchantOrderId;       // 우리 주문 식별자
+	private String cancelIdempotencyKey;  // 외부 멱등 키
 	private Long cancelAmount;
 	private String reason;
 	private boolean fullCancel;
+
 	@Builder
-	public PaymentGatewayCancelRequest(String paymentKey, String merchantOrderId, String cancelIdempotencyKey,
-		Long cancelAmount, String reason, boolean fullCancel) {
+	public PaymentGatewayCancelRequest(
+		String paymentKey,
+		String merchantOrderId,
+		String cancelIdempotencyKey,
+		Long cancelAmount,
+		String reason,
+		boolean fullCancel
+	) {
 		this.paymentKey = paymentKey;
 		this.merchantOrderId = merchantOrderId;
 		this.cancelIdempotencyKey = cancelIdempotencyKey;
@@ -26,14 +32,13 @@ public class PaymentGatewayCancelRequest {
 		this.fullCancel = fullCancel;
 	}
 
-	public static PaymentGatewayCancelRequest from(CancelCommand command) {
+	public static PaymentGatewayCancelRequest from(PaymentCancelJob job) {
 		return PaymentGatewayCancelRequest.builder()
-			.paymentKey(command.getPgTransactionId())
-			.merchantOrderId(String.valueOf(command.getOrderId()))
-			.cancelAmount(command.getCancelAmount())
-			.cancelIdempotencyKey(command.getIdempotencyKey())
-			.reason(command.getReason())
-			.fullCancel(command.getCancelType() == CancelType.FULL)
+			.paymentKey(job.getOriginalPgTransactionId())
+			.merchantOrderId(job.getMerchantOrderId())
+			.cancelIdempotencyKey(job.getCancelIdempotencyKey())
+			.cancelAmount(job.getCancelAmount())
+			.reason(job.getReason())
 			.build();
 	}
 }

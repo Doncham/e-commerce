@@ -26,7 +26,7 @@ class PointFacadeTest {
 	@InjectMocks
 	private PointFacade pointFacade;
 	@Mock
-	private PointCommandService pointCommandService;
+	private PointService pointService;
 	@Mock
 	private PaymentGatewayPort pgPort;
 	@Mock
@@ -54,9 +54,9 @@ class PointFacadeTest {
 			PaymentGatewayStatus.SUCCESS, amount, null, null);
 		PointChargeResponse pointChargeResponse = PointChargeResponse.of(pending);
 
-		when(pointCommandService.createPending(request)).thenReturn(pending);
+		when(pointService.createPending(request)).thenReturn(pending);
 		when(pgPort.requestPayment(any())).thenReturn(pgRes);
-		when(pointCommandService.charge(pending.getId(), request, pgRes)).thenReturn(pointChargeResponse);
+		when(pointService.charge(pending.getId(), request, pgRes)).thenReturn(pointChargeResponse);
 
 		// when
 		PointChargeResponse res = pointFacade.charge(request);
@@ -64,8 +64,8 @@ class PointFacadeTest {
 		// then
 		assertEquals(pointChargeResponse, res);
 		verify(pgPort).requestPayment(any());
-		verify(pointCommandService).charge(pending.getId(),request,pgRes);
-		verify(pointCommandService).createPending(request);
+		verify(pointService).charge(pending.getId(),request,pgRes);
+		verify(pointService).createPending(request);
 	}
 
 	@Test
@@ -86,7 +86,7 @@ class PointFacadeTest {
 		pending.success(amount + basePoint);
 		PointChargeResponse pointChargeResponse = PointChargeResponse.of(pending);
 
-		when(pointCommandService.createPending(request)).thenThrow(DataIntegrityViolationException.class);
+		when(pointService.createPending(request)).thenThrow(DataIntegrityViolationException.class);
 		when(pointQueryService.findChargeResult(userId, idempotencyKey)).thenReturn(pointChargeResponse);
 		// when
 		PointChargeResponse res = pointFacade.charge(request);
@@ -98,7 +98,7 @@ class PointFacadeTest {
 
 		verify(pgPort, never()).requestPayment(any());
 		verify(pointQueryService).findChargeResult(userId, idempotencyKey);
-		verify(pointCommandService, never()).charge(anyLong(), any(), any());
+		verify(pointService, never()).charge(anyLong(), any(), any());
 	}
 
 	@Test

@@ -6,7 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.hhplus.be.server.application.point.PointCommandService;
+import kr.hhplus.be.server.application.point.PointService;
 import kr.hhplus.be.server.application.product.PopularProductIncrementPayload;
 import kr.hhplus.be.server.application.product.PopularRankPort;
 import kr.hhplus.be.server.infrastructure.persistence.outbox.OutboxEventRepository;
@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class OutboxBusinessTxService {
 	private final OutboxEventRepository outboxEventRepo;
-	private final PointCommandService pointService;
+	private final PointService pointService;
 	private final ObjectMapper objectMapper;
 
 	private final PopularRankPort popularRankPort;

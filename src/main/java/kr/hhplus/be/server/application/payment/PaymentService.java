@@ -2,8 +2,10 @@ package kr.hhplus.be.server.application.payment;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
@@ -11,13 +13,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
-
-import kr.hhplus.be.server.application.payment.dto.CancelCommand;
+import kr.hhplus.be.server.application.inventory.InventoryService;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
+import kr.hhplus.be.server.application.payment.dto.PaymentCancelRequest;
 import kr.hhplus.be.server.application.payment.dto.PaymentCancelResponse;
-import kr.hhplus.be.server.application.payment.dto.PaymentFullCancelRequest;
-import kr.hhplus.be.server.application.payment.pg.PaymentGatewayCancelResponse;
 import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
+import kr.hhplus.be.server.application.point.PointService;
 import kr.hhplus.be.server.domain.coupon.exception.CouponExpiredException;
 import kr.hhplus.be.server.domain.coupon.exception.InsufficientCouponStockException;
 import kr.hhplus.be.server.domain.coupon.exception.NotFoundCoupon;
@@ -26,17 +27,19 @@ import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.exception.OrderAlreadyPaidOrderException;
 import kr.hhplus.be.server.domain.order.exception.OrderNotFoundException;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
-import kr.hhplus.be.server.domain.orderproduct.OrderProductStatus;
-import kr.hhplus.be.server.domain.payment.CancelType;
 import kr.hhplus.be.server.domain.payment.Payment;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
+import kr.hhplus.be.server.domain.payment.PaymentStatus;
+import kr.hhplus.be.server.domain.payment.dto.PaymentCancelJob;
 import kr.hhplus.be.server.domain.payment.dto.PaymentDetailResponse;
 import kr.hhplus.be.server.domain.payment.exception.PaymentNotFoundException;
 import kr.hhplus.be.server.domain.paymentcancel.PaymentCancel;
+import kr.hhplus.be.server.domain.paymentcancel.PaymentCancelStatus;
+import kr.hhplus.be.server.domain.paymentcancel.exception.PaymentCancelPermanentException;
+import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.infrastructure.persistence.order.OrderRepository;
 import kr.hhplus.be.server.infrastructure.persistence.orderproduct.OrderProductRepository;
 import kr.hhplus.be.server.infrastructure.persistence.payment.PaymentRepository;
-import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.infrastructure.persistence.paymentcancel.PaymentCancelRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,7 +54,11 @@ public class PaymentService {
 	private final PaymentCancelRepository paymentCancelRepo;
 	private final PaymentReservationProcessor reservationProcessor;
 	private final PaymentOutboxPublisher outboxPublisher;
+	private final PointService pointService;
+	private final InventoryService inventoryService;
 	private final Clock clock;
+
+	private static final String CANCEL_FINGERPRINT_CONSTRAINT = "ux_cancelFingerPrint";
 
 	@Transactional
 	public PaymentAttempt preparePayment(Long orderId, String idemKey) {
@@ -85,7 +92,7 @@ public class PaymentService {
 		backoff = @Backoff(delay = 50, multiplier = 2.0, random = true),
 		exceptionExpression = "@lockRetryPolicy.isMySqlLockWaitTimeout(#root)"
 	)
-	public PayResponse completePayment(Long paymentId, PaymentGatewayResponse pgResp, PaymentGatewayType gatewayType) {
+	public PayResponse completePayment(Long paymentId, PaymentGatewayResponse pgResp) {
 		Payment payment = paymentRepo.findByIdForUpdate(paymentId)
 			.orElseThrow(() ->
 				new PaymentNotFoundException(ErrorCode.NOT_FOUND_PAYMENT, paymentId));
@@ -119,7 +126,7 @@ public class PaymentService {
 	}
 
 	private PayResponse failPayment(PaymentGatewayResponse pgResp, Payment payment, Order order, String reason) {
-		payment.paymentFailed(pgResp.getPgTransactionId(), reason);
+		payment.paymentFailed(reason);
 		order.failed();
 		reservationProcessor.release(order, reason);
 
@@ -135,40 +142,204 @@ public class PaymentService {
 		return PaymentDetailResponse.create(payment);
 	}
 
-
-
 	@Transactional
-	public CancelCommand prepareFullCancel(PaymentFullCancelRequest request) {
-		// payment_id, idemKey에 인덱스를 걸어서 유니크 제약 조건 위반 유발
+	public PaymentCancelJob prepareOrGetCancelJob(PaymentCancelRequest request) {
 		Long paymentId = request.getPaymentId();
-		Payment payment = getPaymentAndCheckStatus(paymentId);
+		Payment payment = getPaymentAndCheckCancelableForPrepare(paymentId);
 
 		Long orderId = payment.getOrder().getId();
-		checkOrderStatus(orderId);
+		getOrderAndCheckCancelableForPrepare(orderId);
 
-		List<OrderProduct> cancelableOrderProducts = orderProductRepo.findCancelableByOrderId(orderId, OrderProductStatus.ORDERED);
-		long cancelAmountTotal = getCancelAmountTotalAndVerify(cancelableOrderProducts);
+		List<Long> targetIds = verifyAndGetUniqueOrderProductIds(request.getOrderProductIds());
 
-		List<Long> cancelableOrderProductIds = extractCancelableIds(cancelableOrderProducts, orderId);
+		List<OrderProduct> orderProducts = orderProductRepo.findByIds(targetIds, orderId);
+		if (orderProducts.size() != targetIds.size()) {
+			throw new IllegalArgumentException("존재하지 않거나 해당 주문에 속하지 않는 주문상품이 포함되어 있습니다.");
+		}
 
-		createCancelRequestWithFingerprint(request, cancelableOrderProductIds, paymentId, cancelAmountTotal);
+		validateAllCancelable(orderProducts);
 
-		return CancelCommand.builder()
-			.paymentId(paymentId)
-			.orderId(orderId)
-			.reason(request.getReason())
-			.cancelType(CancelType.FULL)
-			.cancelAmount(cancelAmountTotal)
-			.idempotencyKey(request.getIdemKey())
-			.targetOrderProducts(cancelableOrderProductIds)
-			.pgTransactionId(payment.getPgTransactionId())
-			.gatewayType(payment.getGatewayType())
-			.build();
+		long cancelAmount = getCancelAmountTotalAndVerify(orderProducts);
+
+		String fingerprint = PaymentCancel.createFingerprint(paymentId, targetIds);
+		String snapshot = targetIds.stream()
+			.sorted()
+			.map(String::valueOf)
+			.reduce((a, b) -> a + "," + b)
+			.orElseThrow();
+
+		try {
+			PaymentCancel created = paymentCancelRepo.saveAndFlush(
+				PaymentCancel.create(
+					paymentId,
+					cancelAmount,
+					request.getIdemKey(),
+					request.getReason(),
+					fingerprint,
+					snapshot
+				)
+			);
+
+			return PaymentCancelJob.of(
+				created,
+				payment.getGatewayType(),
+				payment.getPgTransactionId(),
+				String.valueOf(orderId)
+			);
+
+		} catch (DataIntegrityViolationException e) {
+			if (!isFingerprintDuplicate(e)) {
+				throw e;
+			}
+
+			PaymentCancel existing = paymentCancelRepo.findByCancelFingerPrint(fingerprint)
+				.orElseThrow(() -> new IllegalStateException("유니크 충돌 후 기존 PaymentCancel을 찾지 못했습니다."));
+
+			return PaymentCancelJob.of(
+				existing,
+				payment.getGatewayType(),
+				payment.getPgTransactionId(),
+				String.valueOf(orderId)
+			);
+		}
+	}
+	private boolean isFingerprintDuplicate(DataIntegrityViolationException e) {
+		Throwable cause = e;
+
+		while (cause != null) {
+			if (cause instanceof org.hibernate.exception.ConstraintViolationException cve) {
+				return CANCEL_FINGERPRINT_CONSTRAINT.equals(cve.getConstraintName());
+			}
+			cause = cause.getCause();
+		}
+
+		String message = e.getMessage();
+		return message != null && message.contains(CANCEL_FINGERPRINT_CONSTRAINT);
+	}
+
+	private static void validateAllCancelable(List<OrderProduct> orderProducts) {
+		boolean allCancelable = orderProducts.stream()
+			.allMatch(OrderProduct::isCancelable);
+
+		if (!allCancelable) {
+			throw new IllegalArgumentException("이미 취소되었거나 취소 불가능한 주문상품이 포함되어 있습니다.");
+		}
+	}
+
+	private static List<Long> verifyAndGetUniqueOrderProductIds(List<Long> requestedIds) {
+		if (requestedIds == null || requestedIds.isEmpty()) {
+			throw new IllegalArgumentException("취소할 주문상품이 없습니다.");
+		}
+
+		List<Long> uniqueOrderProductIds = requestedIds.stream()
+			.distinct()
+			.sorted()
+			.toList();
+
+		if (uniqueOrderProductIds.size() != requestedIds.size()) {
+			throw new IllegalArgumentException("중복된 orderProductId가 포함되어 있습니다.");
+		}
+		return uniqueOrderProductIds;
+	}
+
+	@Transactional
+	public PaymentCancelResponse completeCancelPayment(Long paymentCancelId) {
+		PaymentCancel paymentCancel = getPaymentCancelAndCheckCancelable(paymentCancelId);
+
+		Payment payment = getPaymentAndCheckCancelableForComplete(paymentCancel.getPaymentId());
+
+		Long orderId = payment.getOrder().getId();
+		Order order = getOrderAndCheckCancelableForComplete(orderId);
+
+		List<OrderProduct> allOrderProducts = orderProductRepo.findByOrderIdForUpdate(orderId);
+		List<OrderProduct> targetProducts = getOrderProductsAndCheckCancelable(paymentCancel,
+			allOrderProducts);
+
+		verifyCancelAmount(targetProducts, paymentCancel);
+
+		targetProducts.forEach(op -> op.cancel(paymentCancel));
+
+		boolean isFullCancel = allOrderProducts.stream()
+			.noneMatch(OrderProduct::isCancelable);
+
+		payment.applyCancel(paymentCancel.getCancelAmount());
+		order.applyCancelResult(isFullCancel);
+
+		pointService.restorePoint(order.getUser().getId(), targetProducts, orderId);
+		inventoryService.restoreInventory(targetProducts);
+
+		paymentCancel.success();
+
+		return PaymentCancelResponse.from(payment, paymentCancel, order, targetProducts, isFullCancel);
+	}
+
+	private static void verifyCancelAmount(List<OrderProduct> targetProducts, PaymentCancel paymentCancel) {
+		long recalculatedAmount = targetProducts.stream()
+			.mapToLong(OrderProduct::getCancelableAmount)
+			.sum();
+
+		if (recalculatedAmount != paymentCancel.getCancelAmount()) {
+			throw new PaymentCancelPermanentException("취소 금액이 일치하지 않습니다.");
+		}
+	}
+
+	private static List<OrderProduct> getOrderProductsAndCheckCancelable(PaymentCancel paymentCancel,
+		List<OrderProduct> allOrderProducts) {
+		List<Long> targetIds = paymentCancel.getTargetOrderProductIds();
+
+		HashSet<Long> targetIdSet = new HashSet<>(targetIds);
+		List<OrderProduct> targetProducts = allOrderProducts.stream()
+			.filter(op -> targetIdSet.contains(op.getId()))
+			.toList();
+
+		boolean allCancelable = targetProducts.stream().allMatch(OrderProduct::isCancelable);
+		if (!allCancelable) {
+			throw new PaymentCancelPermanentException("취소 불가능한 주문상품이 포함되어 있습니다.");
+		}
+
+		if (targetProducts.size() != targetIdSet.size()) {
+			throw new PaymentCancelPermanentException("일부 주문상품을 찾을 수 없습니다.");
+		}
+		return targetProducts;
+	}
+
+
+	private Order getOrderAndCheckCancelableForComplete(Long orderId) {
+		Order order = orderRepo.findByIdForUpdate(orderId)
+			.orElseThrow(() -> new PaymentCancelPermanentException("존재하지 않는 주문입니다. orderId=" + orderId));
+
+		if (!order.canCancelAnyProduct()) {
+			throw new PaymentCancelPermanentException("해당 주문은 취소할 수 없습니다. orderId=" + orderId);
+		}
+		return order;
+	}
+
+	private Payment getPaymentAndCheckCancelableForComplete(Long paymentId) {
+		Payment payment = paymentRepo.findByIdForUpdate(paymentId)
+			.orElseThrow(() -> new PaymentCancelPermanentException("존재하지 않는 payment 입니다. paymentId=" + paymentId));
+
+		if (!payment.canStartCancel()) {
+			throw new PaymentCancelPermanentException("해당 결제는 취소할 수 없습니다. paymentId=" + paymentId);
+		}
+		return payment;
+	}
+
+	private PaymentCancel getPaymentCancelAndCheckCancelable(Long paymentCancelId) {
+		PaymentCancel paymentCancel = paymentCancelRepo.findByIdForUpdate(paymentCancelId)
+			.orElseThrow(() -> new PaymentCancelPermanentException("존재하지 않는 paymentCancel 입니다. paymentCancelId=" + paymentCancelId));
+		if (!paymentCancel.isPgCancelCompleted()) {
+			throw new PaymentCancelPermanentException("외부 취소가 완료되지 않은 PaymentCancel 입니다.");
+		}
+		if (paymentCancel.getStatus() != PaymentCancelStatus.PROCESSING) {
+			throw new PaymentCancelPermanentException(
+				"완료 처리할 수 없는 PaymentCancel 상태입니다. status=" + paymentCancel.getStatus());
+		}
+		return paymentCancel;
 	}
 
 	private static long getCancelAmountTotalAndVerify(List<OrderProduct> cancelableOrderProducts) {
 		long cancelAmountTotal = cancelableOrderProducts.stream()
-			.mapToLong(OrderProduct::getNetPaidAmount)
+			.mapToLong(OrderProduct::getCancelableAmount)
 			.sum();
 		if(cancelAmountTotal <= 0) {
 			throw new IllegalArgumentException("PG 취소 금액이 0이하일 수 없습니다.");
@@ -176,27 +347,7 @@ public class PaymentService {
 		return cancelAmountTotal;
 	}
 
-	private static List<Long> extractCancelableIds(List<OrderProduct> cancelableOrderProducts, Long orderId) {
-		List<Long> cancelableOrderProductIds = cancelableOrderProducts.stream()
-			.map(OrderProduct::getId)
-			.sorted()
-			.toList();
-
-		if (cancelableOrderProductIds.isEmpty()) {
-			throw new IllegalArgumentException("취소 가능한 주문상품이 없습니다. orderId = " + orderId);
-		}
-		return cancelableOrderProductIds;
-	}
-
-	private void createCancelRequestWithFingerprint(PaymentFullCancelRequest request, List<Long> cancelableOrderProductIds, Long paymentId,
-		long cancelAmountTotal) {
-		String cancelFingerPrint = PaymentCancel.createFingerPrint(CancelType.FULL, request.getPaymentId(),
-			cancelableOrderProductIds);
-		paymentCancelRepo.saveAndFlush(PaymentCancel.create(paymentId, cancelAmountTotal, request.getIdemKey(), request.getReason(),
-			cancelFingerPrint));
-	}
-
-	private void checkOrderStatus(Long orderId) {
+	private void getOrderAndCheckCancelableForPrepare(Long orderId) {
 		Order order = orderRepo.findById(orderId)
 			.orElseThrow(() ->
 				new OrderNotFoundException(ErrorCode.NOT_FOUND_ORDER, orderId)
@@ -206,7 +357,7 @@ public class PaymentService {
 		}
 	}
 
-	private Payment getPaymentAndCheckStatus(Long paymentId) {
+	private Payment getPaymentAndCheckCancelableForPrepare(Long paymentId) {
 		Payment payment = paymentRepo.findById(paymentId)
 			.orElseThrow(() ->
 				new PaymentNotFoundException(ErrorCode.NOT_FOUND_PAYMENT, paymentId));
@@ -216,7 +367,33 @@ public class PaymentService {
 		return payment;
 	}
 
-	public PaymentCancelResponse cancelPayment(CancelCommand command, PaymentGatewayCancelResponse pgResponse) {
-		return null;
+
+	@Transactional(readOnly = true)
+	public PaymentCancelResponse buildSucceededCancelResponse(Long paymentCancelId) {
+		PaymentCancel paymentCancel = paymentCancelRepo.findById(paymentCancelId)
+			.orElseThrow(() ->
+				new PaymentCancelPermanentException("존재하지 않는 paymentCancel 입니다. paymentCancelId=" + paymentCancelId));
+
+		if (paymentCancel.getStatus() != PaymentCancelStatus.SUCCEEDED) {
+			throw new PaymentCancelPermanentException(
+				"성공 응답을 복원할 수 없는 PaymentCancel 상태입니다. status=" + paymentCancel.getStatus()
+			);
+		}
+
+		Payment payment = paymentRepo.findById(paymentCancel.getPaymentId())
+			.orElseThrow(() ->
+				new PaymentNotFoundException(ErrorCode.NOT_FOUND_PAYMENT, paymentCancel.getPaymentId()));
+
+		Long orderId = payment.getOrder().getId();
+		Order order = orderRepo.findById(orderId)
+			.orElseThrow(() ->
+				new OrderNotFoundException(ErrorCode.NOT_FOUND_ORDER, orderId));
+
+		List<OrderProduct> targetProducts = orderProductRepo.findByPaymentCancelId(paymentCancel.getId());
+
+		boolean fullCancel = payment.getStatus() == PaymentStatus.CANCELLED;
+
+		return PaymentCancelResponse.from(payment, paymentCancel, order, targetProducts, fullCancel);
 	}
+
 }

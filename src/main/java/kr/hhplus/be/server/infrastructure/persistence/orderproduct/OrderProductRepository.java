@@ -3,7 +3,6 @@ package kr.hhplus.be.server.infrastructure.persistence.orderproduct;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
@@ -50,7 +49,7 @@ public interface OrderProductRepository extends JpaRepository<OrderProduct, Long
 		from OrderProduct op
 		where op.id in :orderProductIds
 """)
-	List<OrderProduct> findByIds(@Param("orderProductIds") List<Long> orderProductIds);
+	List<OrderProduct> findByIdsForUpdate(@Param("orderProductIds") List<Long> orderProductIds);
 
 	@Query("""
 		select op
@@ -59,4 +58,28 @@ public interface OrderProductRepository extends JpaRepository<OrderProduct, Long
 """)
 	List<OrderProduct> findCancelableByOrderId(@Param("orderId") Long orderId,
 		@Param("status") OrderProductStatus status);
+
+
+	List<OrderProduct> findByOrderId(Long orderId);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+		select op
+		from OrderProduct op
+		where op.order.id in :orderId
+""")
+	List<OrderProduct> findByOrderIdForUpdate(@Param("orderId") Long orderId);
+
+	List<OrderProduct> findByPaymentCancelId(Long paymentCancelId);
+
+	@Query("""
+		select op
+		from OrderProduct op
+		where op.id in :orderProducts
+			and op.order.id = :orderId
+""")
+	List<OrderProduct> findByIds(
+		@Param("orderProducts") List<Long> cancelOrderProductIds,
+		@Param("orderId") Long orderId
+	);
 }

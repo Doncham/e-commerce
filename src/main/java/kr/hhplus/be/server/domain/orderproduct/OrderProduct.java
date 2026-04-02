@@ -1,7 +1,5 @@
 package kr.hhplus.be.server.domain.orderproduct;
 
-import java.time.Clock;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.IntStream;
@@ -57,6 +55,7 @@ public class OrderProduct extends BaseTimeEntity{
 	@JoinColumn(name = "payment_cancel_id")
 	private PaymentCancel paymentCancel;
 
+
 	private OrderProduct(Long productId, String productNameSnap, Long unitPrice, Long couponId) {
 		this.productId = Objects.requireNonNull(productId);
 		this.productNameSnap = Objects.requireNonNull(productNameSnap);
@@ -73,11 +72,11 @@ public class OrderProduct extends BaseTimeEntity{
 		this.order = order;
 	}
 
-	public long getNetPaidAmount() {
+	public long getCancelableAmount() {
 		return unitPrice - allocatedCouponDiscount - allocatedPointUsed;
 	}
 
-	public void cancel(Clock clock, PaymentCancel paymentCancel) {
+	public void cancel(PaymentCancel paymentCancel) {
 		if (!isCancelable()) {
 			throw new IllegalStateException("already canceled orderProductId=" + id);
 		}
