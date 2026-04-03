@@ -181,6 +181,13 @@ public class PaymentCancel {
 			.map(Long::valueOf)
 			.toList();
 	}
+	public static String makeSnapshot(List<Long> orderProductIds) {
+		return orderProductIds.stream()
+			.sorted()
+			.map(String::valueOf)
+			.reduce((a, b) -> a + "," + b)
+			.orElseThrow();
+	}
 
 	private void failRetryable(PaymentCancelFailurePhase phase, String failReason) {
 		if (!isFailTransitionAllowed()) {

@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.api.payment.request.PayResponse;
@@ -58,7 +59,7 @@ public class PaymentService {
 	private final InventoryService inventoryService;
 	private final Clock clock;
 
-	private static final String CANCEL_FINGERPRINT_CONSTRAINT = "ux_cancelFingerPrint";
+
 
 	@Transactional
 	public PaymentAttempt preparePayment(Long orderId, String idemKey) {
@@ -142,6 +143,12 @@ public class PaymentService {
 		return PaymentDetailResponse.create(payment);
 	}
 
+	public String getFingerPrint(PaymentCancelRequest request) {
+		Long paymentId = request.getPaymentId();
+		List<Long> targetIds = verifyAndGetUniqueOrderProductIds(request.getOrderProductIds());
+		return PaymentCancel.createFingerprint(paymentId, targetIds);
+	}
+
 	@Transactional
 	public PaymentCancelJob prepareOrGetCancelJob(PaymentCancelRequest request) {
 		Long paymentId = request.getPaymentId();
@@ -162,13 +169,7 @@ public class PaymentService {
 		long cancelAmount = getCancelAmountTotalAndVerify(orderProducts);
 
 		String fingerprint = PaymentCancel.createFingerprint(paymentId, targetIds);
-		String snapshot = targetIds.stream()
-			.sorted()
-			.map(String::valueOf)
-			.reduce((a, b) -> a + "," + b)
-			.orElseThrow();
-
-		try {
+		String snapshot = PaymentCancel.makeSnapshot(targetIds);
 			PaymentCancel created = paymentCancelRepo.saveAndFlush(
 				PaymentCancel.create(
 					paymentId,
@@ -186,35 +187,22 @@ public class PaymentService {
 				payment.getPgTransactionId(),
 				String.valueOf(orderId)
 			);
-
-		} catch (DataIntegrityViolationException e) {
-			if (!isFingerprintDuplicate(e)) {
-				throw e;
-			}
-
-			PaymentCancel existing = paymentCancelRepo.findByCancelFingerPrint(fingerprint)
-				.orElseThrow(() -> new IllegalStateException("유니크 충돌 후 기존 PaymentCancel을 찾지 못했습니다."));
-
-			return PaymentCancelJob.of(
-				existing,
-				payment.getGatewayType(),
-				payment.getPgTransactionId(),
-				String.valueOf(orderId)
-			);
-		}
 	}
-	private boolean isFingerprintDuplicate(DataIntegrityViolationException e) {
-		Throwable cause = e;
+	@Transactional
+	public PaymentCancelJob getPaymentCancel(PaymentCancelRequest request, String fingerprint) {
+		Long paymentId = request.getPaymentId();
+		Payment payment = getPaymentAndCheckCancelableForPrepare(paymentId);
+		Long orderId = payment.getOrder().getId();
 
-		while (cause != null) {
-			if (cause instanceof org.hibernate.exception.ConstraintViolationException cve) {
-				return CANCEL_FINGERPRINT_CONSTRAINT.equals(cve.getConstraintName());
-			}
-			cause = cause.getCause();
-		}
+		PaymentCancel existing = paymentCancelRepo.findByCancelFingerPrint(fingerprint)
+			.orElseThrow(() -> new IllegalStateException("유니크 충돌 후 기존 PaymentCancel을 찾지 못했습니다."));
 
-		String message = e.getMessage();
-		return message != null && message.contains(CANCEL_FINGERPRINT_CONSTRAINT);
+		return PaymentCancelJob.of(
+			existing,
+			payment.getGatewayType(),
+			payment.getPgTransactionId(),
+			String.valueOf(orderId)
+		);
 	}
 
 	private static void validateAllCancelable(List<OrderProduct> orderProducts) {

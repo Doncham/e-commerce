@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.stereotype.Component;
 
+import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
 import lombok.RequiredArgsConstructor;
 
 @Component

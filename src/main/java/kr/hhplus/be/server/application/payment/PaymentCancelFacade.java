@@ -1,5 +1,6 @@
 package kr.hhplus.be.server.application.payment;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.TransientDataAccessException;
 import org.springframework.stereotype.Service;
 
@@ -7,11 +8,12 @@ import kr.hhplus.be.server.application.payment.dto.PaymentCancelRequest;
 import kr.hhplus.be.server.application.payment.dto.PaymentCancelResponse;
 import kr.hhplus.be.server.application.payment.pg.PaymentGatewayCancelRequest;
 import kr.hhplus.be.server.application.payment.pg.PaymentGatewayCancelResponse;
-import kr.hhplus.be.server.application.payment.pg.PaymentGatewayPort;
+
 import kr.hhplus.be.server.application.payment.pg.PaymentGatewayRouter;
 import kr.hhplus.be.server.application.payment.pg.exception.PaymentGatewayRejectedException;
 import kr.hhplus.be.server.application.payment.pg.exception.PaymentGatewayTemporaryException;
 import kr.hhplus.be.server.application.paymentCancel.PaymentCancelStatusService;
+import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
 import kr.hhplus.be.server.domain.payment.dto.PaymentCancelJob;
 import kr.hhplus.be.server.domain.paymentcancel.exception.PaymentCancelPermanentException;
@@ -26,9 +28,19 @@ public class PaymentCancelFacade {
 	private final PaymentService paymentService;
 	private final PaymentGatewayRouter paymentGatewayRouter;
 	private final PaymentCancelStatusService paymentCancelStatusService;
+	private static final String CANCEL_FINGERPRINT_CONSTRAINT = "payment_cancel.ux_cancelFingerPrint";
 
 	public PaymentCancelResponse cancelPayment(PaymentCancelRequest request) {
-		PaymentCancelJob job = paymentService.prepareOrGetCancelJob(request);
+		String fingerprint = paymentService.getFingerPrint(request);
+		PaymentCancelJob job;
+		try {
+			job = paymentService.prepareOrGetCancelJob(request);
+		} catch (DataIntegrityViolationException e) {
+			if (!isFingerprintDuplicate(e)) {
+				throw e;
+			}
+			job = paymentService.getPaymentCancel(request, fingerprint);
+		}
 
 		if (job.isSucceeded()) {
 			return paymentService.buildSucceededCancelResponse(job.getPaymentCancelId());
@@ -122,5 +134,18 @@ public class PaymentCancelFacade {
 			);
 			throw e;
 		}
+	}
+	private boolean isFingerprintDuplicate(DataIntegrityViolationException e) {
+		Throwable cause = e;
+
+		while (cause != null) {
+			if (cause instanceof org.hibernate.exception.ConstraintViolationException cve) {
+				return CANCEL_FINGERPRINT_CONSTRAINT.equals(cve.getConstraintName());
+			}
+			cause = cause.getCause();
+		}
+
+		String message = e.getMessage();
+		return message != null && message.contains(CANCEL_FINGERPRINT_CONSTRAINT);
 	}
 }

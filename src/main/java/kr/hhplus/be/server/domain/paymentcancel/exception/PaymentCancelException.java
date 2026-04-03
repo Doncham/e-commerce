@@ -5,6 +5,7 @@ public class PaymentCancelException extends RuntimeException{
 	private final String reason;
 
 	public PaymentCancelException(PaymentCancelFailureType failureType, String reason) {
+		super(reason);
 		this.failureType = failureType;
 		this.reason = reason;
 	}
