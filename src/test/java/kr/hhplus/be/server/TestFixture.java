@@ -223,8 +223,8 @@ public final class TestFixture {
 	}
 
 	// ==== paymentCancel ====
-	public static PaymentCancel paymentCancel(Long paymentId, Long cancelAmount, String reason, String fingerPrint) {
-		return PaymentCancel.create(paymentId, cancelAmount, TestFixture.idemKey(), reason, fingerPrint);
+	public static PaymentCancel paymentCancel(Long paymentId, Long cancelAmount, String reason, String fingerPrint, String snapshot) {
+		return PaymentCancel.create(paymentId, cancelAmount, TestFixture.idemKey(), reason, fingerPrint, snapshot);
 	}
 
 	// ==== coupon ====

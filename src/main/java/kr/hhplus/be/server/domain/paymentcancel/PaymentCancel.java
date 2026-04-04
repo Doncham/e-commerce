@@ -50,7 +50,7 @@ public class PaymentCancel {
 	private String reason;
 
 	@Column(length = 100)
-	private String pgCancelTransactionId;
+	private String pgCancellationId;
 
 	private LocalDateTime canceledAt;
 
@@ -133,7 +133,7 @@ public class PaymentCancel {
 		if (status != PaymentCancelStatus.PROCESSING) {
 			throw new IllegalStateException("PG 취소 완료를 기록할 수 없는 상태입니다. status=" + status);
 		}
-		this.pgCancelTransactionId = requireText(pgCancelTxId, "pgCancelTxId");
+		this.pgCancellationId = requireText(pgCancelTxId, "pgCancelTxId");
 		this.canceledAt = Objects.requireNonNull(canceledAt, "canceledAt");
 		this.pgCancelCompleted = true;
 		this.failurePhase = PaymentCancelFailurePhase.AFTER_PG;

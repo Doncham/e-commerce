@@ -1,6 +1,7 @@
 package kr.hhplus.be.server.payment;
 
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.junit.jupiter.api.Assertions;
@@ -12,13 +13,21 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.FixturePersist;
 import kr.hhplus.be.server.TestFixture;
+import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.application.payment.PaymentService;
+import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
+import kr.hhplus.be.server.application.payment.dto.PaymentCancelRequest;
+import kr.hhplus.be.server.application.paymentCancel.PaymentCancelStatusService;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.order.Order;
+import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.orderproduct.OrderProductStatus;
+import kr.hhplus.be.server.domain.payment.CancelType;
 import kr.hhplus.be.server.domain.payment.Payment;
+import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
 import kr.hhplus.be.server.domain.payment.PaymentStatus;
+import kr.hhplus.be.server.domain.payment.dto.PaymentCancelJob;
 import kr.hhplus.be.server.domain.payment.dto.PaymentDetailItemResponse;
 import kr.hhplus.be.server.domain.payment.dto.PaymentDetailResponse;
 import kr.hhplus.be.server.domain.paymentcancel.PaymentCancel;
@@ -50,7 +59,7 @@ public class PaymentReadServiceIntegrationTest {
 	@Autowired
 	private AddressRepository addressRepo;
 	@Autowired
-	private Clock clock;
+	private PaymentCancelStatusService paymentCancelStatusService;
 
 	@Test
 	@Transactional
@@ -66,7 +75,6 @@ public class PaymentReadServiceIntegrationTest {
 		Order order = persist.save(orderRepo,
 			TestFixture.createdOrder(user, TestFixture.shippingFrom(addr), "orderIdem-123", List.of(op1, op2), 0L,
 				"빠르게!", 0L));
-		System.out.println("orderId= " + order.getId());
 
 		op1.initOrder(order);
 		op2.initOrder(order);
@@ -75,12 +83,24 @@ public class PaymentReadServiceIntegrationTest {
 
 
 		Payment payment = persist.saveAndFlush(paymentRepo, TestFixture.successPayment(order, 25000L));
-		Long paymentId = payment.getId();
-		PaymentCancel paymentCancel = TestFixture.paymentCancel(paymentId, 5000L, "변심", "fp");
-		persist.save(paymentCancelRepo, paymentCancel);
-		op1.cancel(paymentCancel);
+		PaymentAttempt paymentAttempt = paymentService.preparePayment(order.getId(), "idem-123");
+		paymentService.completePayment(paymentAttempt.getPaymentId(), PaymentGatewayResponse.of("pg-tx-id",
+			PaymentGatewayStatus.SUCCESS, payment.getAmount(), null, null));
 
-		// payment.cancel();
+		PaymentCancelRequest request = PaymentCancelRequest.builder()
+			.paymentId(payment.getId())
+			.idemKey("cancel-idem-key")
+			.reason("단순 변심")
+			.orderProductIds(List.of(op1.getId()))
+			.userId(user.getId())
+			.cancelType(CancelType.PARTIAL)
+			.build();
+		PaymentCancelJob paymentCancelJob = paymentService.prepareOrGetCancelJob(request);
+		Long paymentCancelId = paymentCancelJob.getPaymentCancelId();
+		paymentCancelStatusService.markProcessing(paymentCancelId);
+		paymentCancelStatusService.markPgCanceledCompleted(paymentCancelId, "pg-cancel-123", LocalDateTime.now());
+		paymentService.completeCancelPayment(paymentCancelId);
+		Long paymentId = payment.getId();
 
 		// when
 		PaymentDetailResponse paymentDetail = paymentService.getPaymentDetail(paymentId);
@@ -90,14 +110,14 @@ public class PaymentReadServiceIntegrationTest {
 		Assertions.assertEquals(payment.getId(), paymentDetail.getPaymentId());
 		Assertions.assertEquals(PaymentStatus.PARTIAL_CANCELED, paymentDetail.getPaymentStatus());
 		Assertions.assertEquals(order.getId(), paymentDetail.getOrderId());
-		//Assertions.assertEquals(OrderStatus.PARTIAL_CANCELED, paymentDetail.getOrderStatus());
-		//Assertions.assertEquals(20000L, paymentDetail.getCancelableAmount());
-		//Assertions.assertEquals(5000L, paymentDetail.getCancelAmountTotal());
+		Assertions.assertEquals(OrderStatus.PARTIAL_CANCELED, paymentDetail.getOrderStatus());
+		Assertions.assertEquals(20000L, paymentDetail.getCancelableAmount());
+		Assertions.assertEquals(5000L, paymentDetail.getCancelAmountTotal());
 		Assertions.assertEquals( 25000L, paymentDetail.getPaidAmount());
 		Assertions.assertEquals(2, orderProducts.size());
 		Assertions.assertEquals(op1.getProductId(), orderProducts.get(0).getProductId());
 		Assertions.assertEquals(OrderProductStatus.CANCELED, orderProducts.get(0).getOrderProductStatus());
-		Assertions.assertEquals("변심", orderProducts.get(0).getCancelReason());
+		Assertions.assertEquals("단순 변심", orderProducts.get(0).getCancelReason());
 
 
 

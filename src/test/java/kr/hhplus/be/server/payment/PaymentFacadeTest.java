@@ -56,7 +56,7 @@ public class PaymentFacadeTest {
 
 		when(command.preparePayment(orderId, idemKey)).thenReturn(attempt);
 		when(pgPort.requestPayment(any())).thenReturn(pgResp);
-		when(command.completePayment(paymentId, pgResp, PaymentGatewayType.TOSS)).thenReturn(expected);
+		when(command.completePayment(paymentId, pgResp)).thenReturn(expected);
 
 		// when
 		PayResponse res = paymentFacade.pay(req);
@@ -74,7 +74,7 @@ public class PaymentFacadeTest {
 		Assertions.assertEquals(amount, sent.getAmount());
 		Assertions.assertEquals(idemKey, sent.getIdempotencyKey());
 
-		inOrder.verify(command).completePayment(paymentId, pgResp, PaymentGatewayType.TOSS);
+		inOrder.verify(command).completePayment(paymentId, pgResp);
 
 		verify(query, never()).findPayResult(any(), any());
 	}
@@ -96,7 +96,7 @@ public class PaymentFacadeTest {
 		// then
 		assertSame(fallback, res);
 		verify(pgPort, never()).requestPayment(any());
-		verify(command, never()).completePayment(any(), any(), any());
+		verify(command, never()).completePayment(any(), any());
 		verify(query).findPayResult(orderId, idemKey);
 	}
 
@@ -119,7 +119,7 @@ public class PaymentFacadeTest {
 		// then
 		assertSame(fallback, res);
 		verify(pgPort, never()).requestPayment(any());
-		verify(command, never()).completePayment(any(), any(),any());
+		verify(command, never()).completePayment(any(), any());
 	}
 }
 

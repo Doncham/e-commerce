@@ -67,7 +67,7 @@ public class PaymentCancelResponse {
 			.totalCanceledAmount(payment.getCanceledAmount())
 			.remainingCancelableAmount(payment.getAmount() - payment.getCanceledAmount())
 			.fullCancel(fullCancel)
-			.pgCancelTransactionId(paymentCancel.getPgCancelTransactionId())
+			.pgCancelTransactionId(paymentCancel.getPgCancellationId())
 			.canceledAt(paymentCancel.getCanceledAt())
 			.canceledOrderProducts(orderProductResponses)
 			.build();

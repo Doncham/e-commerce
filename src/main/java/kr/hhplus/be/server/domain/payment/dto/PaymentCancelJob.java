@@ -16,7 +16,6 @@ public class PaymentCancelJob {
 	private final PaymentGatewayType gatewayType;
 	private final String originalPgTransactionId;
 	private final boolean pgCancelCompleted;
-	private final String pgCancelTransactionId;
 	private final String failReason;
 	private final PaymentCancelStatus status;
 
@@ -30,7 +29,6 @@ public class PaymentCancelJob {
 		PaymentGatewayType gatewayType,
 		String originalPgTransactionId,
 		boolean pgCancelCompleted,
-		String pgCancelTransactionId,
 		String failReason,
 		PaymentCancelStatus status
 	) {
@@ -43,7 +41,6 @@ public class PaymentCancelJob {
 		this.gatewayType = gatewayType;
 		this.originalPgTransactionId = originalPgTransactionId;
 		this.pgCancelCompleted = pgCancelCompleted;
-		this.pgCancelTransactionId = pgCancelTransactionId;
 		this.failReason = failReason;
 		this.status = status;
 	}
@@ -64,7 +61,6 @@ public class PaymentCancelJob {
 			gatewayType,
 			originalPgTransactionId,
 			paymentCancel.isPgCancelCompleted(),
-			paymentCancel.getPgCancelTransactionId(),
 			paymentCancel.getFailReason(),
 			paymentCancel.getStatus()
 		);
