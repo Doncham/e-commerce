@@ -22,7 +22,7 @@ public class PointReservationService {
 	public void confirm(Order order) {
 		if (order.getPointUsedTotal() == 0) return;
 		// 포인트 사용 확정(간단 버전)
-		PointReservation pr = pointReservationRepo.findByOrderId(order.getId())
+		PointReservation pr = pointReservationRepo.findByOrderIdForUpdate(order.getId())
 			.orElseThrow(() ->
 				new PointReservationNotFoundException(ErrorCode.NOT_FOUND_POINT_RESERVATION, order.getId()));
 		if(pr.getStatus() == PointReserveStatus.CONFIRMED) return;
@@ -39,7 +39,7 @@ public class PointReservationService {
 	public void release(Order order, String reason) {
 		if (order.getPointUsedTotal() == 0) return;
 
-		PointReservation pr = pointReservationRepo.findByOrderId(order.getId())
+		PointReservation pr = pointReservationRepo.findByOrderIdForUpdate(order.getId())
 			.orElseThrow(() ->
 				new PointReservationNotFoundException(ErrorCode.NOT_FOUND_POINT_RESERVATION, order.getId()));
 		if(pr.getStatus() == PointReserveStatus.RELEASED) return;

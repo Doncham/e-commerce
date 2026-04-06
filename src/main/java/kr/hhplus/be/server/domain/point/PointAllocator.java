@@ -10,6 +10,8 @@ public class PointAllocator {
 			throw new IllegalArgumentException("orderProducts required");
 		}
 
+		if(totalPointUseAmount == 0) return;
+
 		// 쿠폰이 적용되면 이 부분을 수정해야함.(쿠폰이 적용된 가격을 가져와야해)
 		long totalAmount = items.stream()
 			.mapToLong(OrderProduct::getUnitPrice)

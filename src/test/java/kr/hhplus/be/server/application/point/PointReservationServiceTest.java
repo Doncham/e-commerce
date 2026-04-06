@@ -70,7 +70,7 @@ class PointReservationServiceTest {
 		when(order.getUser()).thenReturn(user);
 
 		when(user.getId()).thenReturn(userId);
-		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
+		when(pointReservationRepo.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.RESERVED);
 		when(reservation.getAmount()).thenReturn(reservedAmount);
 		when(pointRepo.findByUserIdForUpdate(userId)).thenReturn(Optional.of(point));
@@ -79,7 +79,7 @@ class PointReservationServiceTest {
 		pointReservationService.confirm(order);
 
 		// then
-		verify(pointReservationRepo).findByOrderId(orderId);
+		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verify(pointRepo).findByUserIdForUpdate(userId);
 		verify(reservation).confirm();
 		verify(point).confirmUse(reservedAmount);
@@ -92,14 +92,14 @@ class PointReservationServiceTest {
 
 		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
-		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
+		when(pointReservationRepo.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.CONFIRMED);
 
 		// when
 		pointReservationService.confirm(order);
 
 		// then
-		verify(pointReservationRepo).findByOrderId(orderId);
+		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verifyNoInteractions(pointRepo);
 		verify(reservation, never()).confirm();
 	}
@@ -111,13 +111,13 @@ class PointReservationServiceTest {
 
 		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
-		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
+		when(pointReservationRepo.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.RELEASED);
 
 		// when & then
 		assertThrows(IllegalArgumentException.class, () -> pointReservationService.confirm(order));
 
-		verify(pointReservationRepo).findByOrderId(orderId);
+		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verifyNoInteractions(pointRepo);
 		verify(reservation, never()).confirm();
 	}
@@ -129,12 +129,12 @@ class PointReservationServiceTest {
 
 		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
-		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.empty());
+		when(pointReservationRepo.findByOrderIdForUpdate(orderId)).thenReturn(Optional.empty());
 
 		// when & then
 		assertThrows(PointReservationNotFoundException.class, () -> pointReservationService.confirm(order));
 
-		verify(pointReservationRepo).findByOrderId(orderId);
+		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verifyNoInteractions(pointRepo);
 	}
 
@@ -149,14 +149,14 @@ class PointReservationServiceTest {
 		when(order.getUser()).thenReturn(user);
 
 		when(user.getId()).thenReturn(userId);
-		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
+		when(pointReservationRepo.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.RESERVED);
 		when(pointRepo.findByUserIdForUpdate(userId)).thenReturn(Optional.empty());
 
 		// when & then
 		assertThrows(PointNotFoundException.class, () -> pointReservationService.confirm(order));
 
-		verify(pointReservationRepo).findByOrderId(orderId);
+		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verify(pointRepo).findByUserIdForUpdate(userId);
 		verify(reservation, never()).confirm();
 	}
@@ -185,7 +185,7 @@ class PointReservationServiceTest {
 		when(order.getUser()).thenReturn(user);
 
 		when(user.getId()).thenReturn(userId);
-		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
+		when(pointReservationRepo.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.RESERVED);
 		when(reservation.getAmount()).thenReturn(reservedAmount);
 		when(pointRepo.findByUserIdForUpdate(userId)).thenReturn(Optional.of(point));
@@ -194,7 +194,7 @@ class PointReservationServiceTest {
 		pointReservationService.release(order, "PAYMENT_FAILED");
 
 		// then
-		verify(pointReservationRepo).findByOrderId(orderId);
+		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verify(pointRepo).findByUserIdForUpdate(userId);
 		verify(reservation).release("PAYMENT_FAILED");
 		verify(point).releaseReserve(reservedAmount);
@@ -207,14 +207,14 @@ class PointReservationServiceTest {
 
 		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
-		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
+		when(pointReservationRepo.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.RELEASED);
 
 		// when
 		pointReservationService.release(order, "PAYMENT_FAILED");
 
 		// then
-		verify(pointReservationRepo).findByOrderId(orderId);
+		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verifyNoInteractions(pointRepo);
 		verify(reservation, never()).release(anyString());
 	}
@@ -226,13 +226,13 @@ class PointReservationServiceTest {
 
 		when(order.getPointUsedTotal()).thenReturn(1000L);
 		when(order.getId()).thenReturn(orderId);
-		when(pointReservationRepo.findByOrderId(orderId)).thenReturn(Optional.of(reservation));
+		when(pointReservationRepo.findByOrderIdForUpdate(orderId)).thenReturn(Optional.of(reservation));
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.CONFIRMED);
 
 		// when & then
 		assertThrows(IllegalArgumentException.class, () -> pointReservationService.release(order, "PAYMENT_FAILED"));
 
-		verify(pointReservationRepo).findByOrderId(orderId);
+		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verifyNoInteractions(pointRepo);
 		verify(reservation, never()).release(anyString());
 	}

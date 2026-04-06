@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class OrderQueryService {
-	private OrderRepository orderRepository;
+	private final OrderRepository orderRepository;
 	public OrderCreateResponse findByUserIdAndKey(Long userId, String idempotencyKey){
 		Optional<Order> orderOpt = orderRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey);
 		return OrderCreateResponse.from(orderOpt.get());

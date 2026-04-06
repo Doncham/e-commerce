@@ -22,7 +22,7 @@ public class InventoryReservationService {
 
 	public void confirm(Order order) {
 		List<InventoryReservation> reserves = invReserveRepo
-			.findByOrderIdAndStatus(order.getId(), InventoryReserveStatus.RESERVED);
+			.findByOrderIdAndStatusForUpdate(order.getId(), InventoryReserveStatus.RESERVED);
 		if (reserves.isEmpty()) return; // 멱등/재시도 안전
 
 		List<Long> invIds = reserves.stream().map(InventoryReservation::getInventoryId).sorted().toList();
@@ -38,7 +38,7 @@ public class InventoryReservationService {
 
 	public void release(Order order, String reason) {
 		List<InventoryReservation> reserves = invReserveRepo
-			.findByOrderIdAndStatus(order.getId(), InventoryReserveStatus.RESERVED);
+			.findByOrderIdAndStatusForUpdate(order.getId(), InventoryReserveStatus.RESERVED);
 		if (reserves.isEmpty()) return; // 멱등/재시도 안전
 
 		List<Long> invIds = reserves.stream().map(InventoryReservation::getInventoryId).sorted().toList();
