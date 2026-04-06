@@ -7,13 +7,12 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import kr.hhplus.be.server.application.product.ProductSnap;
+import kr.hhplus.be.server.application.product.ProductSnapshot;
 import kr.hhplus.be.server.application.product.ProductSoldQtyDTO;
 import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.product.Product;
@@ -27,14 +26,14 @@ import lombok.RequiredArgsConstructor;
 public class PopularRankRebuildService {
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 	// daily 키는 7/30 롤링용으로 넉넉히 40일 보관
-	private static final Duration WINDOW_TTL = Duration.ofDays(36);
+	private static final Duration WINDOW_TTL = Duration.ofHours(36);
 	private static final Duration SNAP_TTL = Duration.ofHours(24);
 	private final Clock clock;
 	private final OrderProductRepository orderProductRepository;
 	private final ProductRepository productRepository;
 	private final PopularRankRedisWriter redisWriter;
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public void rebuild7d(int topN) {
 		LocalDate today = LocalDate.now(clock.withZone(KST));
 		LocalDateTime to = today.atStartOfDay();
@@ -51,7 +50,7 @@ public class PopularRankRebuildService {
 		warmProductSnapshots(rows, SNAP_TTL);
 	}
 
-	@Transactional(readOnly = true)
+	@Transactional
 	public void rebuild30d(int topN) {
 		LocalDate today = LocalDate.now(clock.withZone(KST));
 		LocalDateTime to = today.atStartOfDay();
@@ -79,8 +78,8 @@ public class PopularRankRebuildService {
 		List<Product> products = productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(
 			productIds);
 
-		List<ProductSnap> snaps = products.stream()
-			.map(ProductSnap::from)
+		List<ProductSnapshot> snaps = products.stream()
+			.map(ProductSnapshot::from)
 			.toList();
 
 		redisWriter.writeProductSnapshots(snaps, ttl);

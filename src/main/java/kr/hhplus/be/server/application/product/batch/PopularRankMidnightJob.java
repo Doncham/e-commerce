@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 public class PopularRankMidnightJob {
 	private final PopularRankRebuildService dailyRebuildService;
 
-	private static final int TOP_N = 50;
+	private static final int TOP_N = 500;
 
 	// 매일 00:00:05 KST (혹시 자정에 DB 부하가 크면 00:10 등으로 조정)
 	@Scheduled(cron = "5 0 0 * * *", zone = "Asia/Seoul")

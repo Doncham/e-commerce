@@ -4,7 +4,7 @@ import java.util.Optional;
 
 import kr.hhplus.be.server.domain.order.Order;
 
-public interface OrderPort {
+public interface OrderRepository {
 	Order loadOrderForUpdate(Long orderId);
 	Order save(Order order);
 

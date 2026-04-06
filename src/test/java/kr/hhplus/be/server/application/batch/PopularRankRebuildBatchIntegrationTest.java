@@ -117,19 +117,18 @@ class PopularRankRebuildServiceIntegrationTest {
 		setCreatedAt(in7, o4);
 
 		// --- order_products ---
-		// p1: o1에서 2, o2에서 3, o3(out7)에서 5
-		saveOrderProduct(o1, p1, 2);
-		saveOrderProduct(o2, p1, 3);
-		saveOrderProduct(o3, p1, 5);
+		saveOrderProduct(o1, p1);
+		saveOrderProduct(o2, p1);
+		saveOrderProduct(o3, p1);
 
 		// p2: o1에서 7
-		saveOrderProduct(o1, p2, 7);
+		saveOrderProduct(o1, p2);
 
 		// p3(deleted): o1에서 100 (하지만 제외되어야 함)
-		saveOrderProduct(o1, p3, 100);
+		saveOrderProduct(o1, p3);
 
 		// FAILED order: 제외되어야 함
-		saveOrderProduct(o4, p1, 999);
+		saveOrderProduct(o4, p1);
 
 		em.flush();
 		em.clear();
@@ -144,8 +143,8 @@ class PopularRankRebuildServiceIntegrationTest {
 		Double p3_7d = redis.opsForZSet().score("rank:7d", String.valueOf(p3.getId()));
 
 		// 7d에서는 out7(8일 전) 제외 => p1=2, p2=7
-		assertThat(p1_7d).isEqualTo(2L);
-		assertThat(p2_7d).isEqualTo(7L);
+		assertThat(p1_7d).isEqualTo(1L);
+		assertThat(p2_7d).isEqualTo(1L);
 		assertThat(p3_7d).isNull();
 
 		// --- then: 30d ---
@@ -154,10 +153,8 @@ class PopularRankRebuildServiceIntegrationTest {
 		Double p3_30d = redis.opsForZSet().score("rank:30d", String.valueOf(p3.getId()));
 
 
-
-		// 30d에서는 in7(2) + in30(3) + out7(5) 포함, FAILED 제외, deleted 제외 => p1=2+3+5=10
-		assertThat(p1_30d).isEqualTo(10L);
-		assertThat(p2_30d).isEqualTo(7L);
+		assertThat(p1_30d).isEqualTo(3L);
+		assertThat(p2_30d).isEqualTo(1L);
 		assertThat(p3_30d).isNull();
 	}
 
@@ -173,10 +170,10 @@ class PopularRankRebuildServiceIntegrationTest {
 		return o;
 	}
 
-	private void saveOrderProduct(Order order, Product product, long qty) {
+	private void saveOrderProduct(Order order, Product product) {
 		// 네 도메인의 OrderProduct 생성 시그니처에 맞춰 수정 필요
 		// (너 fixture의 orderProduct(product, qty)는 productId를 넣는데 product는 저장됐으니 id 있음)
-		OrderProduct op = TestFixture.orderProduct(product, qty);
+		OrderProduct op = TestFixture.orderProduct(product);
 
 		// OrderProduct가 order와 연관관계로 묶여야 join op.order o가 먹음
 		// 즉, op에 order를 세팅해야 함(필드명이 order라고 가정)

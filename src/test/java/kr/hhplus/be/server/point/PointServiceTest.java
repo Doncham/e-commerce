@@ -17,7 +17,7 @@ import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.api.point.request.PointChargeRequest;
 import kr.hhplus.be.server.api.point.response.PointChargeResponse;
-import kr.hhplus.be.server.application.point.PointCommandService;
+import kr.hhplus.be.server.application.point.PointService;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
 import kr.hhplus.be.server.domain.point.Point;
@@ -34,7 +34,7 @@ import kr.hhplus.be.server.infrastructure.persistence.pointcharge.PointChargeRep
 @ExtendWith(MockitoExtension.class)
 class PointServiceTest {
 	@InjectMocks
-	private PointCommandService pointCommandService;
+	private PointService pointService;
 	@Mock
 	private PointRepository pointRepository;
 	@Mock
@@ -60,7 +60,7 @@ class PointServiceTest {
 		when(pointRepository.findByUserIdForUpdate(userId)).thenReturn(Optional.of(point));
 
 		// when
-		pointCommandService.earnForOrder(userId, orderId, orderAmount);
+		pointService.earnForOrder(userId, orderId, orderAmount);
 		ArgumentCaptor<PointHistory> pointHistoryCaptor = ArgumentCaptor.forClass(PointHistory.class);
 
 		// then
@@ -80,7 +80,7 @@ class PointServiceTest {
 
 		// when & then
 		assertThrows(PointAmountNotValidException.class, () -> {
-			pointCommandService.earnForOrder(userId, orderId, orderAmount);
+			pointService.earnForOrder(userId, orderId, orderAmount);
 		});
 		verify(pgPort, never()).requestPayment(any(PaymentGatewayRequest.class));
 	}
@@ -105,7 +105,7 @@ class PointServiceTest {
 		PointCharge pointCharge = PointCharge.of(userId, chargeAmount, idempotencyKey);
 
 		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of(pgTransactionId,
-			PaymentGatewayStatus.SUCCESS, chargeAmount);
+			PaymentGatewayStatus.SUCCESS, chargeAmount, null, null);
 
 		when(pointChargeRepository.findById(pointChargeId)).thenReturn(Optional.of(pointCharge));
 		when(pointRepository.findByUserIdForUpdate(userId))
@@ -115,7 +115,7 @@ class PointServiceTest {
 
 
 		// when
-		PointChargeResponse response = pointCommandService.charge(pointChargeId, request, pgResponse);
+		PointChargeResponse response = pointService.charge(pointChargeId, request, pgResponse);
 
 		// then
 		ArgumentCaptor<PointHistory> captor = ArgumentCaptor.forClass(PointHistory.class);
@@ -157,12 +157,12 @@ class PointServiceTest {
 			.build();
 
 		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of(pgTransactionId,
-			PaymentGatewayStatus.SUCCESS, chargeAmount);
+			PaymentGatewayStatus.SUCCESS, chargeAmount, null, null);
 
 		when(pointChargeRepository.findById(pointChargeId)).thenReturn(Optional.of(existingPointCharge));
 
 		// when
-		PointChargeResponse response = pointCommandService.charge(pointChargeId, request, pgResponse);
+		PointChargeResponse response = pointService.charge(pointChargeId, request, pgResponse);
 		assertEquals(chargeAmount, response.getChargedAmount());
 		assertEquals(chargeAmount + basePoint, response.getBalanceAfterChange());
 		verify(pointRepository, never()).findByUserIdForUpdate(anyLong());
@@ -191,12 +191,12 @@ class PointServiceTest {
 			.build();
 
 		PaymentGatewayResponse pgResponse = PaymentGatewayResponse.of(pgTransactionId,
-			PaymentGatewayStatus.FAILURE, chargeAmount);
+			PaymentGatewayStatus.FAILURE, chargeAmount, null, null);
 
 		when(pointChargeRepository.findById(pointChargeId)).thenReturn(Optional.of(existingPointCharge));
 
 		// when
-		PointChargeResponse response = pointCommandService.charge(pointChargeId, request, pgResponse);
+		PointChargeResponse response = pointService.charge(pointChargeId, request, pgResponse);
 		assertEquals(chargeAmount, response.getChargedAmount());
 		assertEquals(ChargeStatus.FAILED, response.getStatus());
 		assertEquals("pg 결제 실패", response.getFailReason());

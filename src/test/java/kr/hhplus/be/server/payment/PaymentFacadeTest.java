@@ -16,10 +16,11 @@ import kr.hhplus.be.server.api.payment.request.PayRequest;
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
-import kr.hhplus.be.server.application.payment.PaymentCommandService;
+import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.application.payment.PaymentFacade;
 import kr.hhplus.be.server.application.payment.PaymentQueryService;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.domain.order.exception.OrderAlreadyPaidOrderException;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
@@ -29,7 +30,7 @@ public class PaymentFacadeTest {
 	@InjectMocks
 	private PaymentFacade paymentFacade;
 	@Mock
-	private PaymentCommandService command;
+	private PaymentService command;
 	@Mock
 	private PaymentGatewayPort pgPort;
 	@Mock
@@ -43,10 +44,10 @@ public class PaymentFacadeTest {
 		Long paymentId = 10L;
 		Long amount = 2500L;
 
-		PayRequest req = PayRequest.of(idemKey, orderId);
+		PayRequest req = PayRequest.of(idemKey, orderId, PaymentGatewayType.TOSS);
 
 		PaymentAttempt attempt = PaymentAttempt.of(orderId, paymentId, amount, idemKey);
-		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.SUCCESS, amount);
+		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.SUCCESS, amount, null, null);
 		PayResponse expected = PayResponse.builder()
 			.orderId(orderId)
 			.amount(amount)
@@ -83,7 +84,7 @@ public class PaymentFacadeTest {
 		// given
 		Long orderId = 1L;
 		String idemKey = "idem-123";
-		PayRequest req = PayRequest.of(idemKey, orderId);
+		PayRequest req = PayRequest.of(idemKey, orderId, PaymentGatewayType.TOSS);
 
 		when(command.preparePayment(orderId, idemKey)).thenThrow(new DataIntegrityViolationException("dup"));
 		PayResponse fallback = PayResponse.builder().orderId(orderId).message("fallback").build();
@@ -104,7 +105,7 @@ public class PaymentFacadeTest {
 		// given
 		Long orderId = 1L;
 		String idemKey = "idem-123";
-		PayRequest req = PayRequest.of(idemKey, orderId);
+		PayRequest req = PayRequest.of(idemKey, orderId,PaymentGatewayType.TOSS);
 
 		when(command.preparePayment(orderId, idemKey))
 			.thenThrow(mock(OrderAlreadyPaidOrderException.class));

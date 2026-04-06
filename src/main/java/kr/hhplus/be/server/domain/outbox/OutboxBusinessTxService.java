@@ -6,7 +6,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.hhplus.be.server.application.point.PointCommandService;
+import kr.hhplus.be.server.application.point.PointService;
 import kr.hhplus.be.server.application.product.PopularProductIncrementPayload;
 import kr.hhplus.be.server.application.product.PopularRankPort;
 import kr.hhplus.be.server.infrastructure.persistence.outbox.OutboxEventRepository;
@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class OutboxBusinessTxService {
 	private final OutboxEventRepository outboxEventRepo;
-	private final PointCommandService pointService;
+	private final PointService pointService;
 	private final ObjectMapper objectMapper;
 
 	private final PopularRankPort popularRankPort;
@@ -43,8 +43,8 @@ public class OutboxBusinessTxService {
 			// 이 작업 후 장애 발생 시 redis 증분이 여러번 집계될 수 있다.
 			// 00:00시에 동작하는 배치를 통해 최종적인 정합성을 맞출 계획.
 			for (PopularProductIncrementPayload.Item item : payload.getItems()) {
-				popularRankPort.increment7d(item.getProductId(), item.getQty());
-				popularRankPort.increment30d(item.getProductId(), item.getQty());
+				popularRankPort.increment7d(item.getProductId(), 1);
+				popularRankPort.increment30d(item.getProductId(), 1);
 			}
 		}
 

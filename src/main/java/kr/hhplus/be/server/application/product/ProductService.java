@@ -11,7 +11,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.redis.connection.RedisStringCommands;
 import org.springframework.data.redis.connection.RedisStringCommands.SetOption;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -68,126 +67,148 @@ public class ProductService {
 		}).orElseThrow(() -> new NotFoundInventoryException(String.valueOf(productId)));
 	}
 
+	// 나중에 Facade + cacheWarmer로 분리해서 진짜 조회만 하는 방향으로 리팩토링 ㄱㄱ
 	@Transactional(readOnly = true)
 	public PopularProductsResponse getPopulars(PopularDateRange range) {
-		String zsetKey = zsetKey(range);
-		String oldKey = zsetKey + ":old";
+		List<RankedProduct> rankedProducts = loadRankedProducts(range);
 
-		Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet()
-			.reverseRangeWithScores(zsetKey, 0, POPULAR_PRODUCT_LIMIT - 1);
-
-		if(tuples == null || tuples.isEmpty()) {
-			// fallback: 배치 전이나 비어있으면 DB 집계해서 반환해줌.
-			tuples = stringRedisTemplate.opsForZSet().reverseRangeWithScores(oldKey, 0, POPULAR_PRODUCT_LIMIT - 1);
-			if (tuples == null || tuples.isEmpty()) {
-				return queryPopularsFromDb(range);
-			}
-		}
-
-		// map: {productId, soldQty}
-		// 랭크 순서가 유지되는 list(productId)
-		List<Long> rankedProductIds = new ArrayList<>(tuples.size());
-		Map<Long, Long> soldQtyMap = new HashMap<>(tuples.size());
-
-		for (ZSetOperations.TypedTuple<String> t : tuples) {
-			if (t == null || t.getValue() == null || t.getScore() == null) continue;
-			long productId = Long.parseLong(t.getValue());
-
-			// 실제 판매량, soldQty
-			long soldQty = PopularScoreCodec.decodeQty(t.getScore());
-
-			rankedProductIds.add(productId);
-			soldQtyMap.put(productId, soldQty);
-		}
-
-		if (rankedProductIds.isEmpty()) {
+		if (rankedProducts.isEmpty()) {
 			return queryPopularsFromDb(range);
 		}
 
-		// Tier2: 스냅샷 캐시 MGET
-		List<String> snapKeys = rankedProductIds.stream()
-			.map(this::snapKey)
-			.toList();
+		Map<Long, ProductSnapshot> snapMap = loadProductSnapshotMap(rankedProducts);
+		List<PopularProductItemResponse> items = toPopularItems(rankedProducts, snapMap);
 
-		// 캐시된 product 상세, 50개 들어있음, 없는 캐시는 null
-		List<String> snapJsons = stringRedisTemplate.opsForValue().multiGet(snapKeys);
+		return new PopularProductsResponse(range.days() + "d", LocalDateTime.now(), items);
+	}
 
-		Map<Long, ProductSnap> snapMap = new HashMap<>();
-		List<Long> missedIds = new ArrayList<>();
-
-		for(int i = 0; i < rankedProductIds.size(); i++) {
-			Long pid = rankedProductIds.get(i);
-			// 이렇게 전부 방어하는게 맞나? 코테에 익숙하면 방어 잘하겠네
-			String json = (snapJsons == null || snapJsons.size() <= i ? null : snapJsons.get(i));
-
-			if (json == null || json.isBlank()) {
-				// 캐시에 없는 product 모으기.
-				missedIds.add(pid);
-				continue;
-			}
-			try {
-				// pid랑 snapJsons에 있는 객체랑 1:1로 매핑되어야함.
-				ProductSnap snap = objectMapper.readValue(json, ProductSnap.class);
-				// 만약 캐시가 꼬였으면 해당 product 상세 내용을 저장 x
-				if(snap != null && snap.getProductId().equals(pid)) {
-					snapMap.put(pid, snap);
-				} else {
-					missedIds.add(pid);
-				}
-			} catch (Exception e) {
-				// 깨진 캐시 제거하고 DB 미스로 처리
-				stringRedisTemplate.delete(snapKey(pid));
-				missedIds.add(pid);
-			}
-		}
-
-		// 미스만 DB 조회
-		if (!missedIds.isEmpty()) {
-			List<Product> missProducts = productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(missedIds);
-
-			// DB 결과를 snap으로 변환
-			List<ProductSnap> newSnaps = missProducts.stream()
-				.map(ProductSnap::from)
-				.toList();
-
-			// map에 합치기
-			for (ProductSnap s : newSnaps) {
-				snapMap.put(s.getProductId(), s);
-			}
-
-			// 미스만 Redis에 채우기 (pipeline으로 최적화)
-			warmupProductSnaps(newSnaps, PRODUCT_SNAP_TTL);
-		}
-
-		// ZSET 순서대로 응답 구성(rank 유지)
+	private List<PopularProductItemResponse> toPopularItems(List<RankedProduct> rankedProducts,
+		Map<Long, ProductSnapshot> snapMap) {
 		List<PopularProductItemResponse> items = new ArrayList<>();
 		int rank = 1;
 
-		for (Long productId : rankedProductIds) {
-			ProductSnap snap = snapMap.get(productId);
-			if(snap == null) continue;
+		for (RankedProduct ranked : rankedProducts) {
+			ProductSnapshot snap = snapMap.get(ranked.productId());
+			if (snap == null) {
+				continue;
+			}
 
 			items.add(new PopularProductItemResponse(
 				rank++,
 				snap.getProductId(),
 				snap.getName(),
 				snap.getPrice(),
-				soldQtyMap.getOrDefault(productId, 0L)
+				ranked.soldQty()
 			));
 		}
 
-		return new PopularProductsResponse(range.days() + "d", LocalDateTime.now(), items);
+		return items;
 	}
 
+	private Map<Long, ProductSnapshot> loadProductSnapshotMap(List<RankedProduct> rankedProducts) {
+		Map<Long, String> productSnapshotJsonMap = loadProductSnapshotJsonMap(rankedProducts);
+
+		Map<Long, ProductSnapshot> productSnapshotMap = new HashMap<>();
+		List<Long> missedIds = new ArrayList<>();
+
+		for (RankedProduct ranked : rankedProducts) {
+			Long productId = ranked.productId();
+			String json = productSnapshotJsonMap.get(productId);
+
+			if (json == null || json.isBlank()) {
+				missedIds.add(productId);
+				continue;
+			}
+
+			try {
+				ProductSnapshot productSnapshot = objectMapper.readValue(json, ProductSnapshot.class);
+				if (productSnapshot != null && productSnapshot.getProductId().equals(productId)) {
+					productSnapshotMap.put(productId, productSnapshot);
+				} else {
+					missedIds.add(productId);
+				}
+			} catch (Exception e) {
+				stringRedisTemplate.delete(productSnapshotKey(productId));
+				missedIds.add(productId);
+			}
+		}
+
+		if (!missedIds.isEmpty()) {
+			List<Product> missProducts = productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(missedIds);
+			List<ProductSnapshot> newProductSnapshots = missProducts.stream()
+				.map(ProductSnapshot::from)
+				.toList();
+
+			for (ProductSnapshot productSnapshot : newProductSnapshots) {
+				productSnapshotMap.put(productSnapshot.getProductId(), productSnapshot);
+			}
+
+			warmUpProductSnaps(newProductSnapshots, PRODUCT_SNAP_TTL);
+		}
+
+		return productSnapshotMap;
+	}
+
+	private Map<Long, String> loadProductSnapshotJsonMap(List<RankedProduct> rankedProducts) {
+		List<Long> productIds = rankedProducts.stream()
+			.map(RankedProduct::productId)
+			.toList();
+
+		List<String> keys = productIds.stream()
+			.map(this::productSnapshotKey)
+			.toList();
+
+		List<String> values = stringRedisTemplate.opsForValue().multiGet(keys);
+
+		Map<Long, String> result = new HashMap<>();
+		for (int i = 0; i < productIds.size(); i++) {
+			String json = (values == null || values.size() <= i) ? null : values.get(i);
+			result.put(productIds.get(i), json);
+		}
+		return result;
+	}
+
+	private List<RankedProduct> loadRankedProducts(PopularDateRange range) {
+		String zsetKey = zsetKey(range);
+		String oldKey = zsetKey + ":old";
+
+		Set<ZSetOperations.TypedTuple<String>> tuples =
+			stringRedisTemplate.opsForZSet().reverseRangeWithScores(zsetKey, 0, POPULAR_PRODUCT_LIMIT - 1);
+
+		if (tuples == null || tuples.isEmpty()) {
+			tuples = stringRedisTemplate.opsForZSet().reverseRangeWithScores(oldKey, 0, POPULAR_PRODUCT_LIMIT - 1);
+			if (tuples == null || tuples.isEmpty()) {
+				return List.of();
+			}
+		}
+
+		return toRankedProducts(tuples);
+	}
+
+	private List<RankedProduct> toRankedProducts(Set<ZSetOperations.TypedTuple<String>> tuples) {
+		List<RankedProduct> result = new ArrayList<>();
+		for (ZSetOperations.TypedTuple<String> t : tuples) {
+			if (t == null || t.getValue() == null || t.getScore() == null) {
+				continue;
+			}
+
+			long productId = Long.parseLong(t.getValue());
+			long soldQty = PopularScoreCodec.decodeQty(t.getScore());
+			result.add(new RankedProduct(productId, soldQty));
+		}
+		return result;
+	}
+
+
 	// Tier2 warmup(pipeline)
-	private void warmupProductSnaps(List<ProductSnap> snaps, Duration ttl) {
-		if(snaps == null || snaps.isEmpty()) return;
+	private void warmUpProductSnaps(List<ProductSnapshot> productSnapshots, Duration ttl) {
+		if(productSnapshots == null || productSnapshots.isEmpty()) return;
 		RedisSerializer<String> serializer = stringRedisTemplate.getStringSerializer();
 		Expiration expiration = (ttl == null) ? Expiration.persistent() : Expiration.seconds(ttl.getSeconds());
 		stringRedisTemplate.executePipelined((RedisCallback<Object>)connection -> {
-			for (ProductSnap s : snaps) {
+			for (ProductSnapshot s : productSnapshots) {
 				try {
-					String key = snapKey(s.getProductId());
+					String key = productSnapshotKey(s.getProductId());
 					String json = objectMapper.writeValueAsString(s);
 
 					byte[] k = serializer.serialize(key);
@@ -197,7 +218,7 @@ public class ProductService {
 						connection.expire(k, ttl.getSeconds());
 					}
 				} catch (Exception e) {
-					// warmup 실패는 조회 결과에 영향을 주ㅕㅁㄴ 안됨
+					// warmup 실패는 조회 결과에 영향을 주면 안됨
 					log.warn("product snap warmup failed. productId={}", s.getProductId(), e);
 				}
 			}
@@ -205,6 +226,7 @@ public class ProductService {
 		});
 	}
 
+	// 여기서도 warmup 해야할듯? 조회 메서드에 캐시 갱신까지 책임이 들어가면 관리 포인트가 많아짐.
 	private PopularProductsResponse queryPopularsFromDb(PopularDateRange range) {
 		LocalDateTime to = LocalDateTime.now();
 		LocalDateTime from = to.minusDays(range.days());
@@ -252,7 +274,7 @@ public class ProductService {
 		};
 	}
 
-	private String snapKey(long productId) {
+	private String productSnapshotKey(long productId) {
 		return "product:snap:" + productId;
 	}
 }

@@ -73,11 +73,11 @@ class PopularProductZSetReadTest {
 		given(valueOps.multiGet(eq(List.of("product:snap:2", "product:snap:1"))))
 			.willReturn(List.of("JSON2", "JSON1"));
 
-		ProductSnap s2 = snapMock(2L, "P2", 2000L);
-		ProductSnap s1 = snapMock(1L, "P1", 1000L);
+		ProductSnapshot s2 = snapMock(2L, "P2", 2000L);
+		ProductSnapshot s1 = snapMock(1L, "P1", 1000L);
 
-		given(objectMapper.readValue("JSON2", ProductSnap.class)).willReturn(s2);
-		given(objectMapper.readValue("JSON1", ProductSnap.class)).willReturn(s1);
+		given(objectMapper.readValue("JSON2", ProductSnapshot.class)).willReturn(s2);
+		given(objectMapper.readValue("JSON1", ProductSnapshot.class)).willReturn(s1);
 
 		// when
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
@@ -112,8 +112,8 @@ class PopularProductZSetReadTest {
 		given(valueOps.multiGet(eq(List.of("product:snap:2", "product:snap:1"))))
 			.willReturn(Arrays.asList("JSON2", null));
 
-		ProductSnap s2 = snapMock(2L, "P2", 2000L);
-		given(objectMapper.readValue("JSON2", ProductSnap.class)).willReturn(s2);
+		ProductSnapshot s2 = snapMock(2L, "P2", 2000L);
+		given(objectMapper.readValue("JSON2", ProductSnapshot.class)).willReturn(s2);
 
 		// miss(1)만 DB에서 product 조회
 		Product p1 = product(1L, "P1", 1000L);
@@ -122,7 +122,7 @@ class PopularProductZSetReadTest {
 
 		// warmup pipeline 수행
 		given(redis.executePipelined(any(RedisCallback.class))).willReturn(List.of());
-		given(objectMapper.writeValueAsString(any(ProductSnap.class))).willReturn("NEWJSON");
+		given(objectMapper.writeValueAsString(any(ProductSnapshot.class))).willReturn("NEWJSON");
 
 		// when
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
@@ -160,7 +160,7 @@ class PopularProductZSetReadTest {
 			.willReturn(List.of(p202));
 
 		given(redis.executePipelined(any(RedisCallback.class))).willReturn(List.of());
-		given(objectMapper.writeValueAsString(any(ProductSnap.class))).willReturn("NEW202");
+		given(objectMapper.writeValueAsString(any(ProductSnapshot.class))).willReturn("NEW202");
 
 		// when
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.THIRTY);
@@ -275,7 +275,7 @@ class PopularProductZSetReadTest {
 			.willReturn(List.of(p101, p303));
 
 		given(redis.executePipelined(any(RedisCallback.class))).willReturn(List.of());
-		given(objectMapper.writeValueAsString(any(ProductSnap.class))).willReturn("NEW");
+		given(objectMapper.writeValueAsString(any(ProductSnapshot.class))).willReturn("NEW");
 
 		// when
 		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
@@ -302,8 +302,8 @@ class PopularProductZSetReadTest {
 		return p;
 	}
 
-	private ProductSnap snapMock(Long id, String name, Long price) {
-		ProductSnap s = mock(ProductSnap.class);
+	private ProductSnapshot snapMock(Long id, String name, Long price) {
+		ProductSnapshot s = mock(ProductSnapshot.class);
 		given(s.getProductId()).willReturn(id);
 		given(s.getName()).willReturn(name);
 		given(s.getPrice()).willReturn(price);

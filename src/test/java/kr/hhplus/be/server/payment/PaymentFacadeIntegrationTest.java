@@ -3,6 +3,8 @@ package kr.hhplus.be.server.payment;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +23,7 @@ import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
 import kr.hhplus.be.server.api.payment.request.PayRequest;
 import kr.hhplus.be.server.api.point.request.PointChargeRequest;
 import kr.hhplus.be.server.application.outbox.OutboxProcessor;
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cart.Cart;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
@@ -103,14 +106,15 @@ public class PaymentFacadeIntegrationTest {
 			.andDo(print());
 
 		// 주문 api 호출 후 잔액 확인(point의 reserved 필드 변한거 검증하면 될듯)
+		OrderDraftCreateRequest.OrderDraftItemRequest items = TestFixture.orderDraftItemRequest(
+			cartItem1.getId(), null, 2L);
 		OrderDraftCreateRequest orderRequest = OrderDraftCreateRequest.builder()
-			.cartId(cart.getId())
 			.addressId(addr.getId())
 			.memo("빠른 배송 부탁")
 			.userId(u.getId())
-			.couponId(null)
 			.pointUseAmount(3000L)
 			.idempotencyKey(TestFixture.idemKey())
+			.items(List.of(items))
 			.build();
 
 		String orderJson = objectMapper.writeValueAsString(orderRequest);
@@ -132,7 +136,7 @@ public class PaymentFacadeIntegrationTest {
 		Assertions.assertEquals(3000L, reserved);
 		Assertions.assertEquals(inventoryAfterOrder.getReserved(), 2L);
 
-		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId());
+		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId(), PaymentGatewayType.TOSS);
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);
 
 		// 결제
@@ -191,15 +195,16 @@ public class PaymentFacadeIntegrationTest {
 			.andExpect(jsonPath("$.balanceAfterChange").value(5000L))
 			.andDo(print());
 
+		OrderDraftCreateRequest.OrderDraftItemRequest items = TestFixture.orderDraftItemRequest(
+			cartItem1.getId(), null, 2L);
 		// 주문 api 호출 후 잔액 확인(point의 reserved 필드 변한거 검증하면 될듯)
 		OrderDraftCreateRequest orderRequest = OrderDraftCreateRequest.builder()
-			.cartId(cart.getId())
 			.addressId(addr.getId())
 			.memo("빠른 배송 부탁")
 			.userId(u.getId())
-			.couponId(null)
 			.pointUseAmount(3000L)
 			.idempotencyKey(TestFixture.idemKey())
+			.items(List.of(items))
 			.build();
 
 		String orderJson = objectMapper.writeValueAsString(orderRequest);
@@ -215,7 +220,7 @@ public class PaymentFacadeIntegrationTest {
 
 		Order order = orderRepository.findByUserIdAndIdempotencyKey(u.getId(), orderRequest.getIdempotencyKey()).get();
 
-		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId());
+		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId(), PaymentGatewayType.TOSS);
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);
 
 		// 결제
@@ -277,15 +282,16 @@ public class PaymentFacadeIntegrationTest {
 			.andExpect(jsonPath("$.balanceAfterChange").value(5000L))
 			.andDo(print());
 
+		OrderDraftCreateRequest.OrderDraftItemRequest items = TestFixture.orderDraftItemRequest(
+			cartItem1.getId(), null, 2L);
 		// 주문 api 호출 후 잔액 확인(point의 reserved 필드 변한거 검증하면 될듯)
 		OrderDraftCreateRequest orderRequest = OrderDraftCreateRequest.builder()
-			.cartId(cart.getId())
 			.addressId(addr.getId())
 			.memo("빠른 배송 부탁")
 			.userId(u.getId())
-			.couponId(null)
 			.pointUseAmount(3000L)
 			.idempotencyKey(TestFixture.idemKey())
+			.items(List.of(items))
 			.build();
 
 		String orderJson = objectMapper.writeValueAsString(orderRequest);
@@ -301,7 +307,7 @@ public class PaymentFacadeIntegrationTest {
 
 		Order order = orderRepository.findByUserIdAndIdempotencyKey(u.getId(), orderRequest.getIdempotencyKey()).get();
 
-		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId());
+		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId(), PaymentGatewayType.TOSS);
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);
 
 		// 결제

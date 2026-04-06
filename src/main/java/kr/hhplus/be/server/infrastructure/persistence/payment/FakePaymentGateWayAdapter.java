@@ -2,14 +2,19 @@ package kr.hhplus.be.server.infrastructure.persistence.payment;
 
 import java.util.UUID;
 
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
 import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
+
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayCancelRequest;
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayCancelResponse;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
 
 @Component
+@Primary
 public class FakePaymentGateWayAdapter implements PaymentGatewayPort {
 
 	@Override
@@ -18,6 +23,11 @@ public class FakePaymentGateWayAdapter implements PaymentGatewayPort {
 		String txNum = uuid.substring(0, 3);
 		return PaymentGatewayResponse.of("tx-" + txNum,
 			PaymentGatewayStatus.SUCCESS,
-			request.getAmount());
+			request.getAmount(), null, null);
+	}
+
+	@Override
+	public PaymentGatewayCancelResponse cancel(PaymentGatewayCancelRequest request) {
+		return null;
 	}
 }

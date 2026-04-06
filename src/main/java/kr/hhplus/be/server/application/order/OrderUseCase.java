@@ -1,8 +1,8 @@
 package kr.hhplus.be.server.application.order;
 
 import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
-import kr.hhplus.be.server.api.order.response.OrderDraftCreateResponse;
+import kr.hhplus.be.server.api.order.response.OrderCreateResponse;
 
 public interface OrderUseCase {
-	OrderDraftCreateResponse createOrder(OrderDraftCreateRequest request);
+	OrderCreateResponse createOrder(OrderDraftCreateRequest request);
 }

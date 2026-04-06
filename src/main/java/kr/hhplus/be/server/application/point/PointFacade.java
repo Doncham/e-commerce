@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class PointFacade {
-	private final PointCommandService command;
+	private final PointService command;
 	private final PaymentGatewayPort pgPort;
 	private final PointQueryService query;
 

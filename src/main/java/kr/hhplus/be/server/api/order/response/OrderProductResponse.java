@@ -3,28 +3,39 @@ package kr.hhplus.be.server.api.order.response;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 @Getter
-@NoArgsConstructor
 public class OrderProductResponse {
-	private Long productId;
-	private String productName;
-	private long qty;
-	private Long unitPrice;
+	private final Long orderProductId;
+	private final Long productId;
+	private final String productName;
+	private final Long unitPrice;
+	private final Long appliedCouponId;
+	private final Long allocatedCouponDiscount;
+	private final Long allocatedPointUsed;
+	private final Long netPaidAmount;
 	@Builder
-	public OrderProductResponse(Long productId, String productName, long qty, Long unitPrice) {
+	public OrderProductResponse(Long orderProductId, Long productId, String productName, Long unitPrice, Long appliedCouponId,
+		Long allocatedCouponDiscount, Long allocatedPointUsed, Long netPaidAmount) {
+		this.orderProductId = orderProductId;
 		this.productId = productId;
 		this.productName = productName;
-		this.qty = qty;
 		this.unitPrice = unitPrice;
+		this.appliedCouponId = appliedCouponId;
+		this.allocatedCouponDiscount = allocatedCouponDiscount;
+		this.allocatedPointUsed = allocatedPointUsed;
+		this.netPaidAmount = netPaidAmount;
 	}
 	public static OrderProductResponse from(OrderProduct op){
 		return OrderProductResponse.builder()
+			.orderProductId(op.getId())
 			.productId(op.getProductId())
 			.productName(op.getProductNameSnap())
-			.qty(op.getQty())
+			.appliedCouponId(op.getAppliedCouponId())
 			.unitPrice(op.getUnitPrice())
+			.allocatedCouponDiscount(op.getAllocatedCouponDiscount())
+			.allocatedPointUsed(op.getAllocatedPointUsed())
+			.netPaidAmount(op.getCancelableAmount())
 			.build();
 	}
 }

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.hhplus.be.server.application.product.PopularScoreCodec;
-import kr.hhplus.be.server.application.product.ProductSnap;
+import kr.hhplus.be.server.application.product.ProductSnapshot;
 import kr.hhplus.be.server.application.product.ProductSoldQtyDTO;
 import lombok.RequiredArgsConstructor;
 
@@ -55,13 +55,13 @@ public class PopularRankRedisWriter {
 		redis.rename(tmpKey, finalKey);
 	}
 
-	public void writeProductSnapshots(List<ProductSnap> snaps, Duration ttl) {
+	public void writeProductSnapshots(List<ProductSnapshot> snaps, Duration ttl) {
 		if(snaps == null || snaps.isEmpty()) return;
 
 		redis.executePipelined((RedisCallback<Object>) connection -> {
 			RedisSerializer<String> serializer = redis.getStringSerializer();
 
-			for (ProductSnap s : snaps) {
+			for (ProductSnapshot s : snaps) {
 				if(s.getProductId() == null || s.getProductId() <= 0) continue;
 
 				String key = snapKey(s.getProductId());

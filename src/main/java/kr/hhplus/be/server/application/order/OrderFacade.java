@@ -4,7 +4,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 
 import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
-import kr.hhplus.be.server.api.order.response.OrderDraftCreateResponse;
+import kr.hhplus.be.server.api.order.response.OrderCreateResponse;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -13,7 +13,7 @@ public class OrderFacade {
 	private final OrderCommandService orderCommandService;
 	private final OrderQueryService orderQueryService;
 
-	public OrderDraftCreateResponse createOrder(OrderDraftCreateRequest request) {
+	public OrderCreateResponse createOrder(OrderDraftCreateRequest request) {
 		try{
 			return orderCommandService.createOrder(request);
 		} catch (DataIntegrityViolationException e) {

@@ -59,21 +59,19 @@ public class Order extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Long itemTotal;
 
-	private Long couponId; // user_coupon_id, 추적, null 가능
-
 	@Column(nullable = false)
-	private Long couponDiscount;
+	private Long couponDiscountTotal;
 	@Column(nullable = false)
 	private Long payAmount;
 	private String memo;
 	// 이것도 차감해줘야지
 	@Column(nullable = false)
-	private Long pointUsed;
+	private Long pointUsedTotal;
 	@Column(name="idempotency_key", nullable = false)
 	private String idempotencyKey;
 
 	@OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-	private List<OrderProduct> orderProducts = new ArrayList<>();
+	private List<OrderProduct> orderProducts;
 
 	public static Order createDraft(User user, ShippingInfo shippingInfo, String idempotencyKey) {
 		return new Order(user, shippingInfo, idempotencyKey);
@@ -84,18 +82,18 @@ public class Order extends BaseTimeEntity {
 		this.idempotencyKey = Objects.requireNonNull(idempotencyKey);
 		this.status = OrderStatus.DRAFT;
 		this.itemTotal = 0L;
-		this.couponDiscount = 0L;
+		this.couponDiscountTotal = 0L;
 		this.payAmount = 0L;
-		this.pointUsed = 0L;
+		this.pointUsedTotal = 0L;
+		this.orderProducts = new ArrayList<>();
 	}
 
 
 	public void completeOrderDraft(
 		List<OrderProduct> items,
-		Long couponId,
-		Long couponDiscount,
+		Long couponDiscountTotal,
 		String memo,
-		Long point
+		Long pointUsedTotal
 	) {
 		ensureDraftState();
 		// null, empty 체크
@@ -103,18 +101,24 @@ public class Order extends BaseTimeEntity {
 		items.forEach(this::addOrderProduct);
 
 		// item 총 가격 계산
-		long itemTotal = calculateItemTotal();
-		this.itemTotal = itemTotal;
+		this.itemTotal = calculateItemTotal();
+		this.couponDiscountTotal = couponDiscountTotal == null ? 0L : couponDiscountTotal;
+		this.pointUsedTotal = pointUsedTotal == null ? 0L : pointUsedTotal;
+		long payable = this.itemTotal - this.couponDiscountTotal - this.pointUsedTotal;
+		if (payable < 0) {
+			throw new IllegalStateException("payAmount cannot be negative");
+		}
+		this.payAmount = payable;
 
-		this.couponId = couponId;
-		this.couponDiscount = couponDiscount == null ? 0L : couponDiscount;
-		this.pointUsed = point == null ? 0L : point;
-		long discounted = Math.max(0L, this.itemTotal - this.couponDiscount - this.pointUsed);
-		this.payAmount = discounted;
+		// 포인트 할당 검증
+		long allocatedPointTotal = calculateAllocatedPointTotal();
+		if (allocatedPointTotal != this.pointUsedTotal) {
+			throw new IllegalStateException("allocated pointUsedTotal sum mismatch");
+		}
 
 		this.memo = memo;
-
 		this.status = OrderStatus.CREATED;
+
 	}
 	private void ensureDraftState() {
 		if(this.status != OrderStatus.DRAFT){
@@ -129,7 +133,7 @@ public class Order extends BaseTimeEntity {
 
 	private long calculateItemTotal() {
 		return this.orderProducts.stream()
-			.mapToLong(OrderProduct::getItemTotalPrice)
+			.mapToLong(OrderProduct::getUnitPrice)
 			.sum();
 	}
 
@@ -148,5 +152,24 @@ public class Order extends BaseTimeEntity {
 	public boolean isPaid() {
 		return this.status == OrderStatus.PAID;
 	}
-	// 쿠폰 추가
+	public boolean canCancelAnyProduct() {
+		return this.status == OrderStatus.PAID || this.status == OrderStatus.PARTIAL_CANCELED;
+	}
+
+	private long calculateAllocatedPointTotal() {
+		return this.orderProducts.stream()
+			.mapToLong(OrderProduct::getAllocatedPointUsed)
+			.sum();
+	}
+	public void applyCancelResult(boolean fullyCanceled) {
+		if (this.status != OrderStatus.PAID && this.status != OrderStatus.PARTIAL_CANCELED) {
+			throw new IllegalStateException("취소 결과를 반영할 수 없는 주문 상태입니다. status=" + this.status);
+		}
+
+		if (fullyCanceled) {
+			this.status = OrderStatus.CANCELED;
+		} else {
+			this.status = OrderStatus.PARTIAL_CANCELED;
+		}
+	}
 }

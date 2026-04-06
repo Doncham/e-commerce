@@ -5,6 +5,8 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
+import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cart.Cart;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
@@ -15,6 +17,7 @@ import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.ShippingInfo;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.payment.Payment;
+import kr.hhplus.be.server.domain.paymentcancel.PaymentCancel;
 import kr.hhplus.be.server.domain.point.Point;
 import kr.hhplus.be.server.domain.product.Product;
 import kr.hhplus.be.server.domain.user.User;
@@ -124,12 +127,12 @@ public final class TestFixture {
 	}
 
 	// ===== OrderProduct =====
-	public static OrderProduct orderProduct(Product product, long qty) {
+	public static OrderProduct orderProduct(Product product) {
 		return OrderProduct.create(
 			product.getId(),            // 주의: product가 아직 저장 전이면 id=null
 			product.getName(),
 			product.getPrice(),
-			qty
+			null
 		);
 	}
 
@@ -137,8 +140,12 @@ public final class TestFixture {
 	 * product 저장 전이라 id가 null일 수 있음.
 	 * 통합테스트에서는 보통 Product를 먼저 저장 후 그 id를 넣는게 맞다.
 	 */
-	public static OrderProduct orderProduct(Long productId, String productNameSnap, Long unitPrice, long qty) {
-		return OrderProduct.create(productId, productNameSnap, unitPrice, qty);
+	public static OrderProduct orderProduct(Long productId, String productNameSnap, Long unitPrice) {
+		return OrderProduct.create(productId, productNameSnap, unitPrice, null);
+	}
+
+	public static OrderProduct orderProduct(Long productId, String productNameSnap, Long unitPrice, Long couponId) {
+		return OrderProduct.create(productId, productNameSnap, unitPrice, couponId);
 	}
 
 	// ===== Order =====
@@ -153,31 +160,29 @@ public final class TestFixture {
 	public static Order createdOrder(
 		User user,
 		ShippingInfo shippingInfo,
-		List<OrderProduct> items,
-		Long couponId,
-		Long couponDiscount,
-		String memo,
-		Long pointUsed
-	) {
-		Order order = Order.createDraft(user, shippingInfo, idemKey());
-		order.completeOrderDraft(items, couponId, couponDiscount, memo, pointUsed);
-		return order;
-	}
-
-	public static Order createdOrder(
-		User user,
-		ShippingInfo shippingInfo,
 		String orderIdemKey,
 		List<OrderProduct> items,
-		Long couponId,
 		Long couponDiscount,
 		String memo,
 		Long pointUsed
 	) {
 		Order order = Order.createDraft(user, shippingInfo, orderIdemKey);
-		order.completeOrderDraft(items, couponId, couponDiscount, memo, pointUsed);
+		order.completeOrderDraft(items, couponDiscount, memo, pointUsed);
 		return order;
 	}
+	public static OrderDraftCreateRequest.OrderDraftItemRequest orderDraftItemRequest(
+		Long cartItemId,
+		Long couponId,
+		Long orderQty
+	) {
+		return OrderDraftCreateRequest.OrderDraftItemRequest.builder()
+			.cartItemId(cartItemId)
+			.userCouponId(couponId)
+			.orderQty(orderQty)
+			.build();
+	}
+
+
 
 	// ==== cartItem ====
 	public static CartItem cartItem(
@@ -198,23 +203,28 @@ public final class TestFixture {
 
 	// ===== Payment =====
 	public static Payment requestedPayment(Order order, Long amount) {
-		return Payment.createPayment(order, idemKey(), amount);
+		return Payment.createPayment(order, idemKey(), amount, PaymentGatewayType.TOSS);
 	}
 
 	public static Payment requestedPayment(Order order, String paymentIdemKey, Long amount) {
-		return Payment.createPayment(order, paymentIdemKey, amount);
+		return Payment.createPayment(order, paymentIdemKey, amount, PaymentGatewayType.TOSS);
 	}
 
 	public static Payment successPayment(Order order, Long amount) {
-		Payment p = Payment.createPayment(order, idemKey(), amount);
+		Payment p = Payment.createPayment(order, idemKey(), amount,PaymentGatewayType.TOSS);
 		p.paymentSuccess(pgTxId(), now());
 		return p;
 	}
 
 	public static Payment failedPayment(Order order, Long amount, String reason) {
-		Payment p = Payment.createPayment(order, idemKey(), amount);
-		p.paymentFailed(pgTxId(), reason);
+		Payment p = Payment.createPayment(order, idemKey(), amount,PaymentGatewayType.TOSS);
+		p.paymentFailed(reason);
 		return p;
+	}
+
+	// ==== paymentCancel ====
+	public static PaymentCancel paymentCancel(Long paymentId, Long cancelAmount, String reason, String fingerPrint, String snapshot) {
+		return PaymentCancel.create(paymentId, cancelAmount, TestFixture.idemKey(), reason, fingerPrint, snapshot);
 	}
 
 	// ==== coupon ====

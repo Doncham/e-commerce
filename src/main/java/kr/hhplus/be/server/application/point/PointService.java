@@ -2,14 +2,15 @@ package kr.hhplus.be.server.application.point;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.api.point.request.PointChargeRequest;
 import kr.hhplus.be.server.api.point.response.PointChargeResponse;
+import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
 import kr.hhplus.be.server.domain.point.Point;
 import kr.hhplus.be.server.infrastructure.persistence.point.PointRepository;
@@ -26,7 +27,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class PointCommandService {
+public class PointService {
 	private final PointRepository pointRepository;
 	private final PointHistoryRepository pointHistoryRepository;
 	private static final BigDecimal EARN_RATE = new BigDecimal("0.01"); // 1% 적립
@@ -103,5 +104,21 @@ public class PointCommandService {
 			.multiply(EARN_RATE)
 			.setScale(0, RoundingMode.DOWN) // 내림
 			.longValue();
+	}
+
+	public void restorePoint(Long userId, List<OrderProduct> orderProducts, Long orderId) {
+		Point point = pointRepository.findByUserIdForUpdate(userId).orElseGet(() ->
+			pointRepository.save(Point.createPoint(userId))
+		);
+
+		long restorePoint = orderProducts.stream()
+			.mapToLong(OrderProduct::getAllocatedPointUsed)
+			.sum();
+		Long balanceAfterCancel = point.increaseBalance(restorePoint);
+
+		PointHistory pointHistory = PointHistory.createPointHistory(userId, ChangeType.CANCEL, restorePoint,
+			balanceAfterCancel, SourceType.ORDER,
+			orderId);
+		pointHistoryRepository.save(pointHistory);
 	}
 }

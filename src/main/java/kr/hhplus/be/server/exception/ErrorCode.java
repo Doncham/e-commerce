@@ -15,6 +15,7 @@ public enum ErrorCode {
 	POINT_AMOUNT_NOT_VALID(HttpStatus.BAD_REQUEST, "포인트 금액이 유효하지 않음"),
 	PAY_AMOUNT_MISMATCH(HttpStatus.BAD_REQUEST, "결제 금액 불일치"),
 	PAID_ORDER_MUST_HAVE_PAYMENT(HttpStatus.BAD_REQUEST, "결제된 주문에 결제 정보가 없음"),
+	PAYMENT_GATEWAY_REJECTED(HttpStatus.REQUEST_TIMEOUT, "PG가 요청을 거절했습니다."),
 
 	// 404 Not Found
 	NOT_FOUND_INVENTORY(HttpStatus.NOT_FOUND, "인벤토리 없음"),
@@ -23,7 +24,7 @@ public enum ErrorCode {
 	NOT_FOUND_POINT(HttpStatus.NOT_FOUND, "포인트 없음"),
 	NOT_FOUND_POINT_CHARGE(HttpStatus.NOT_FOUND, "포인트 충전 없음"),
 	NOT_FOUND_POINT_RESERVATION(HttpStatus.NOT_FOUND, "포인트 예약 없음"),
-	NOT_FOUNT_PAYMENT(HttpStatus.NOT_FOUND, "결제 정보 없음"),
+	NOT_FOUND_PAYMENT(HttpStatus.NOT_FOUND, "결제 정보 없음"),
 
 	// 409 Conflict (리소스 상태 충돌 / 중복 / 재고/한도 문제)
 	NOT_ENOUGH_POINT(HttpStatus.CONFLICT, "포인트 부족"),
@@ -35,7 +36,11 @@ public enum ErrorCode {
 	ALREADY_PAID_ORDER(HttpStatus.CONFLICT, "이미 결제됨(주문)"),
 
 	// 429 Too Many Request (락 획득 실패)
-	COUPON_ISSUE_BUSY(HttpStatus.TOO_MANY_REQUESTS, "쿠폰 발급락 획득 실패");
+	COUPON_ISSUE_BUSY(HttpStatus.TOO_MANY_REQUESTS, "쿠폰 발급락 획득 실패"),
+
+	// 503 Service Unavailable, 외부 결제 시스템 일시 장애
+	PAYMENT_CANCEL_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "PG payment cancel 실패"),
+	PAYMENT_GATEWAY_TEMPORARILY_STOP(HttpStatus.SERVICE_UNAVAILABLE, "PG 서버에 잠깐 오류 발생");
 
 
 

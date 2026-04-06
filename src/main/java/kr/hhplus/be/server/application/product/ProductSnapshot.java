@@ -6,18 +6,18 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor
-public class ProductSnap {
+public class ProductSnapshot {
 	private Long productId;
 	private String name;
 	private Long price;
 
-	public ProductSnap(Long productId, String name, Long price) {
+	public ProductSnapshot(Long productId, String name, Long price) {
 		this.productId = productId;
 		this.name = name;
 		this.price = price;
 	}
 
-	public static ProductSnap from(Product p) {
-		return new ProductSnap(p.getId(), p.getName(), p.getPrice());
+	public static ProductSnapshot from(Product p) {
+		return new ProductSnapshot(p.getId(), p.getName(), p.getPrice());
 	}
 }

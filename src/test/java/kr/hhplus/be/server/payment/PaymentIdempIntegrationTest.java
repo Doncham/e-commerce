@@ -4,6 +4,8 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import java.util.List;
+
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -25,10 +27,10 @@ import kr.hhplus.be.server.FixturePersist;
 import kr.hhplus.be.server.TestFixture;
 import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
 import kr.hhplus.be.server.api.payment.request.PayRequest;
-import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.api.point.request.PointChargeRequest;
 import kr.hhplus.be.server.application.payment.PaymentFacade;
+import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cart.Cart;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
@@ -116,7 +118,7 @@ public class PaymentIdempIntegrationTest {
 		Address addr = persist.saveAndFlush(addressRepository, TestFixture.address(u));
 		Long pointChargeAmount = 5000L;
 		PaymentGatewayResponse pgPointChargeRes = PaymentGatewayResponse.of(TestFixture.pgTxId(),
-			PaymentGatewayStatus.SUCCESS, pointChargeAmount);
+			PaymentGatewayStatus.SUCCESS, pointChargeAmount, null, null);
 		when(pgPort.requestPayment(any())).thenReturn(pgPointChargeRes);
 		// 포인트 충전 api 호출 후 point 잔액 확인
 		PointChargeRequest request = PointChargeRequest.builder()
@@ -137,16 +139,17 @@ public class PaymentIdempIntegrationTest {
 
 		// 밑에 결제 멱등성 검증을 위해 삭제
 		clearInvocations(pgPort);
+		OrderDraftCreateRequest.OrderDraftItemRequest items = TestFixture.orderDraftItemRequest(
+			cartItem1.getId(), null, 2L);
 
 		// 주문 api 호출 후 잔액 확인(point의 reserved 필드 변한거 검증하면 될듯)
 		OrderDraftCreateRequest orderRequest = OrderDraftCreateRequest.builder()
-			.cartId(cart.getId())
 			.addressId(addr.getId())
 			.memo("빠른 배송 부탁")
 			.userId(u.getId())
-			.couponId(null)
 			.pointUseAmount(3000L)
 			.idempotencyKey(TestFixture.idemKey())
+			.items(List.of(items))
 			.build();
 
 		String orderJson = objectMapper.writeValueAsString(orderRequest);
@@ -168,11 +171,11 @@ public class PaymentIdempIntegrationTest {
 		Assertions.assertEquals(3000L, reserved);
 		Assertions.assertEquals(inventoryAfterOrder.getReserved(), 2L);
 		String payIdemKey = TestFixture.idemKey();
-		PayRequest payRequest = PayRequest.of(payIdemKey, order.getId());
+		PayRequest payRequest = PayRequest.of(payIdemKey, order.getId(), PaymentGatewayType.TOSS);
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);
 
 		PaymentGatewayResponse pgRes = PaymentGatewayResponse.of(TestFixture.pgTxId(),
-			PaymentGatewayStatus.SUCCESS, 1000L);
+			PaymentGatewayStatus.SUCCESS, 1000L, null, null);
 		Mockito.when(pgPort.requestPayment(any())).thenReturn(pgRes);
 		//when(pgPort.requestPayment(any(PaymentGatewayRequest.class))).thenReturn(pgRes);
 

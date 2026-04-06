@@ -24,6 +24,5 @@ public class PopularProductIncrementPayload {
 	@AllArgsConstructor
 	public static class Item {
 		private Long productId;
-		private Long qty;
 	}
 }
