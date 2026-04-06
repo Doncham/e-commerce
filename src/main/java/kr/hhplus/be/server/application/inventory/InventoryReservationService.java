@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.domain.inventory.Inventory;
 import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservation;
@@ -16,6 +17,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class InventoryReservationService {
 	private final InventoryReserveRepository invReserveRepo;
 	private final InventoryRepository invRepo;

@@ -1,6 +1,7 @@
 package kr.hhplus.be.server.application.point;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.point.Point;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class PointReservationService {
 	private final PointRepository pointRepo;
 	private final PointReservationRepository pointReservationRepo;
