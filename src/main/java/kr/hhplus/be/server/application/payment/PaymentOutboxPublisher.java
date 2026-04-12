@@ -1,5 +1,6 @@
 package kr.hhplus.be.server.application.payment;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -46,7 +47,8 @@ public class PaymentOutboxPublisher {
 
 	public void publishPopularIncrement(Order order, LocalDateTime paidAt) {
 		// 1) 날짜 문자열 생성 (KST 기준)
-		String yyyymmdd = ZonedDateTime.of(paidAt, KST).format(YYYYMMDD);
+		LocalDate salesDate = ZonedDateTime.of(paidAt, KST).toLocalDate();
+
 
 		// 2) 주문 아이템(productId, qty) 구성
 		List<PopularProductIncrementPayload.Item> items = order.getOrderProducts().stream()
@@ -55,7 +57,7 @@ public class PaymentOutboxPublisher {
 
 		PopularProductIncrementPayload payload = new PopularProductIncrementPayload(
 			order.getId(),
-			yyyymmdd,
+			salesDate,
 			items
 		);
 

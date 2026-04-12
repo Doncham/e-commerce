@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.application.product.ProductSnapshot;
 import kr.hhplus.be.server.application.product.ProductSoldQtyDTO;
+import kr.hhplus.be.server.domain.dailyProductSale.DailyProductSalesRepository;
 import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.product.Product;
 import kr.hhplus.be.server.infrastructure.persistence.orderproduct.OrderProductRepository;

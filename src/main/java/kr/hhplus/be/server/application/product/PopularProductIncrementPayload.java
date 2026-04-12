@@ -1,5 +1,6 @@
 package kr.hhplus.be.server.application.product;
 
+import java.time.LocalDate;
 import java.util.List;
 
 import lombok.AllArgsConstructor;
@@ -14,7 +15,7 @@ public class PopularProductIncrementPayload {
 	private Long orderId;
 
 	// "20260209" 같은 문자열 (Asia/Seoul 기준)
-	private String yyyymmdd;
+	private LocalDate salesDate;
 
 	// 판매수량 기준 증분
 	private List<Item> items;

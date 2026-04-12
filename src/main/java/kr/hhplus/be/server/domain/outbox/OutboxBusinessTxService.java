@@ -1,7 +1,6 @@
 package kr.hhplus.be.server.domain.outbox;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,18 +45,9 @@ public class OutboxBusinessTxService {
 			PopularProductIncrementPayload payload = objectMapper.readValue(event.getPayload(),
 				PopularProductIncrementPayload.class);
 
-			// 이 작업 후 장애 발생 시 redis 증분이 여러번 집계될 수 있다.
-			// 00:00시에 동작하는 배치를 통해 최종적인 정합성을 맞출 계획.
-			// for (PopularProductIncrementPayload.Item item : payload.getItems()) {
-			// 	popularRankPort.increment7d(item.getProductId(), 1);
-			// 	popularRankPort.increment30d(item.getProductId(), 1);
-			// }
-
 			// 리팩토링
 			// dailyProductSales upsert하기
-			String yyyymmdd = payload.getYyyymmdd();
-			LocalDate salesDate = LocalDate.parse(yyyymmdd, DateTimeFormatter.BASIC_ISO_DATE);
-
+			LocalDate salesDate = payload.getSalesDate();
 			for (PopularProductIncrementPayload.Item item : payload.getItems()) {
 				Long productId = item.getProductId();
 				dailyProductSalesRepo.increasePaidCount(salesDate, productId);

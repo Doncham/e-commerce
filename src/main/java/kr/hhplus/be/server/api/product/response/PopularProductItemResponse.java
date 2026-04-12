@@ -1,5 +1,6 @@
 package kr.hhplus.be.server.api.product.response;
 
+import kr.hhplus.be.server.application.product.PopularProductRowWithRank;
 import lombok.Getter;
 
 @Getter
@@ -16,5 +17,14 @@ public class PopularProductItemResponse {
 		this.name = name;
 		this.price = price;
 		this.soldQty = soldQty;
+	}
+	public static PopularProductItemResponse from(PopularProductRowWithRank product) {
+		return new PopularProductItemResponse(
+			product.getRank(),
+			product.getProductId(),
+			product.productName,
+			product.price,
+			product.soldQty
+		);
 	}
 }
