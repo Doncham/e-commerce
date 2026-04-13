@@ -1,7 +1,6 @@
 package kr.hhplus.be.server.application.product;
 
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
@@ -19,6 +18,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import kr.hhplus.be.server.api.product.ProductDetailResponse;
 import kr.hhplus.be.server.api.product.response.PopularProductItemResponse;
 import kr.hhplus.be.server.api.product.response.PopularProductsResponse;
+import kr.hhplus.be.server.application.cache.PopularLocalCache;
 import kr.hhplus.be.server.domain.inventory.InventoryStatus;
 import kr.hhplus.be.server.domain.inventory.exception.NotFoundInventoryException;
 import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
@@ -41,6 +41,9 @@ public class ProductService {
 
 	private final Clock clock;
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
+	private final PopularLocalCache localCache;
+
 
 	@Transactional(readOnly = true)
 	public ProductDetailResponse getProductDetail(long productId) {
@@ -70,44 +73,56 @@ public class ProductService {
 				// DB fallback? or 빈 리스트 던지기, 레디스 장애가 생기면 DB 조회해서 반환하는게 맞는듯
 				// 가변게 오늘 인기상품에 대한 집계 코드를 만들어서 반환해줄까? 7/30일은 너무 많아질 수 있잖아
 				log.warn("popular cache miss. key={}, range={}", key, range);
-				return queryPopularsFromDb(range);
+				return getPopularsWithLocalCache(range);
 			}
 			popularList =
 				objectMapper.readValue(json, new TypeReference<List<PopularProductRowWithRank>>() {});
 
 			List<PopularProductItemResponse> items = popularList.stream()
 				.map(PopularProductItemResponse::from)
-				.collect(Collectors.toList());
+				.toList();
 
 			return new PopularProductsResponse(range.days() + "d", LocalDateTime.now(clock.withZone(KST)), items);
 		} catch (JsonProcessingException e) {
 			// 캐시 깨졌을 때 바로 예외 터뜨리는건 좀 아니다. DB 조회해서 반환해야함.
 			log.warn("popular cache parse failed. key={}, range={}", key, range, e);
-			return queryPopularsFromDb(range);
+			return getPopularsWithLocalCache(range);
 		} catch (DataAccessException e) {
 			log.warn("popular cache access failed. key={}, range={}", key, range, e);
-			return queryPopularsFromDb(range);
+			return getPopularsWithLocalCache(range);
 		}
 	}
 
 
-	// 여기서도 warmup 해야할듯? 조회 메서드에 캐시 갱신까지 책임이 들어가면 관리 포인트가 많아짐.
-	private PopularProductsResponse queryPopularsFromDb(PopularDateRange range) {
-		LocalDate endDate = LocalDate.now(clock.withZone(KST));
-		LocalDate startDate = endDate.minusDays(range.days());
+	private PopularProductsResponse getPopularsWithLocalCache(PopularDateRange range) {
+		// 캐시 먼저 확인하기
+		String cacheKey = localCacheKey(range);
+		PopularProductsResponse cached = localCache.get(cacheKey);
+		if(cached != null) return cached;
+
+		// 없으면 DB 집계하고 캐시 넣기
 		List<PopularProductRowWithRank> popularProductRowWithRanks = popularProductRefreshService.getPopularProductRowWithRanks(
 			range.days());
 
+		// 서비스 너무 안돼서 팔린 상품이 없는 경우
 		if (popularProductRowWithRanks.isEmpty()) {
-			return new PopularProductsResponse(range.days() + "d", LocalDateTime.now(clock.withZone(KST)), List.of());
+			PopularProductsResponse emptyResponse = new PopularProductsResponse(range.days() + "d",
+				LocalDateTime.now(clock.withZone(KST)), List.of());
+			localCache.put(cacheKey, emptyResponse);
+			return emptyResponse;
 		}
 
 		List<PopularProductItemResponse> popularResponses = popularProductRowWithRanks.stream()
 			.map(PopularProductItemResponse::from)
 			.collect(Collectors.toList());
 
-		return new PopularProductsResponse(range.days() + "d", LocalDateTime.now(clock.withZone(KST)),
+		PopularProductsResponse response = new PopularProductsResponse(range.days() + "d",
+			LocalDateTime.now(clock.withZone(KST)),
 			popularResponses);
+
+		localCache.put(cacheKey, response);
+
+		return response;
 	}
 
 	private String cacheKey(PopularDateRange range){
@@ -116,6 +131,10 @@ public class ProductService {
 			case THIRTY -> "rank:30d";
 			case TEST -> "rank:testd";
 		};
+	}
+
+	private String localCacheKey(PopularDateRange range) {
+		return "popular:" + range.name();
 	}
 }
 

@@ -4,7 +4,6 @@ import java.time.LocalDateTime;
 import java.util.function.Consumer;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.domain.paymentcancel.PaymentCancel;

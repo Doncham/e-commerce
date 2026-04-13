@@ -60,6 +60,9 @@ dependencies {
 	// Redis
 	implementation("org.redisson:redisson-spring-boot-starter:3.42.0")
 
+	// Cache
+	implementation("com.github.ben-manes.caffeine:caffeine")
+
 	testImplementation ("org.testcontainers:junit-jupiter")
 	testImplementation ("org.testcontainers:testcontainers")
 
