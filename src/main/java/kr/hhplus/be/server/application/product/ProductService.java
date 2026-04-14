@@ -95,34 +95,22 @@ public class ProductService {
 
 
 	private PopularProductsResponse getPopularsWithLocalCache(PopularDateRange range) {
-		// 캐시 먼저 확인하기
 		String cacheKey = localCacheKey(range);
-		PopularProductsResponse cached = localCache.get(cacheKey);
-		if(cached != null) return cached;
 
-		// 없으면 DB 집계하고 캐시 넣기
-		List<PopularProductRowWithRank> popularProductRowWithRanks = popularProductRefreshService.getPopularProductRowWithRanks(
-			range.days());
+		return localCache.getOrLoad(cacheKey, k -> {
+			List<PopularProductRowWithRank> popularProductRowWithRanks = popularProductRefreshService.getPopularProductRowWithRanks(
+				range.days());
 
-		// 서비스 너무 안돼서 팔린 상품이 없는 경우
-		if (popularProductRowWithRanks.isEmpty()) {
-			PopularProductsResponse emptyResponse = new PopularProductsResponse(range.days() + "d",
-				LocalDateTime.now(clock.withZone(KST)), List.of());
-			localCache.put(cacheKey, emptyResponse);
-			return emptyResponse;
-		}
+			List<PopularProductItemResponse> popularResponses = popularProductRowWithRanks.stream()
+				.map(PopularProductItemResponse::from)
+				.collect(Collectors.toList());
 
-		List<PopularProductItemResponse> popularResponses = popularProductRowWithRanks.stream()
-			.map(PopularProductItemResponse::from)
-			.collect(Collectors.toList());
-
-		PopularProductsResponse response = new PopularProductsResponse(range.days() + "d",
-			LocalDateTime.now(clock.withZone(KST)),
-			popularResponses);
-
-		localCache.put(cacheKey, response);
-
-		return response;
+			// 인기 상품이 없어도 빈 리스트가 캐시에 저장됨.
+			return new PopularProductsResponse(
+				range.days() + "d",
+				LocalDateTime.now(clock.withZone(KST)),
+				popularResponses);
+		});
 	}
 
 	private String cacheKey(PopularDateRange range){

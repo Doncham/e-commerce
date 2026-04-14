@@ -1,6 +1,7 @@
 package kr.hhplus.be.server.application.cache;
 
 import java.time.Duration;
+import java.util.function.Function;
 
 import org.springframework.stereotype.Component;
 
@@ -26,6 +27,13 @@ public class PopularLocalCache {
 
 	public void evict(String key) {
 		cache.invalidate(key);
+	}
+
+	public PopularProductsResponse getOrLoad(
+		String key,
+		Function<String, PopularProductsResponse> loader
+	) {
+		return cache.get(key, loader);
 	}
 
 }

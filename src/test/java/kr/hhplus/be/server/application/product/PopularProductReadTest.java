@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -21,6 +22,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.hhplus.be.server.api.product.response.PopularProductsResponse;
+import kr.hhplus.be.server.application.cache.PopularLocalCache;
 import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.product.Product;
 import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
@@ -42,6 +44,9 @@ class PopularProductZSetReadTest {
 	@Mock ObjectMapper objectMapper;
 
 	ProductService productService;
+	PopularProductRefreshService popularProductRefreshService;
+	Clock clock;
+	PopularLocalCache localCache;
 
 	@BeforeEach
 	void setUp() {
@@ -51,10 +56,11 @@ class PopularProductZSetReadTest {
 		// @InjectMocks 대신 직접 생성(주입 누락으로 인한 NPE 방지)
 		productService = new ProductService(
 			inventoryRepository,
-			orderProductRepository,
-			productRepository,
+			popularProductRefreshService,
 			redis,
-			objectMapper
+			objectMapper,
+			clock,
+			localCache
 		);
 	}
 

@@ -2,6 +2,7 @@ package kr.hhplus.be.server.application.outbox;
 
 import static org.assertj.core.api.Assertions.*;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Set;
 
@@ -59,7 +60,7 @@ public class OutboxPopularIncrementIntegrationTest {
 
 		PopularProductIncrementPayload payload = new PopularProductIncrementPayload(
 			orderId,
-			"20260210",
+			LocalDate.now(),
 			List.of(
 				new PopularProductIncrementPayload.Item(10L),
 				new PopularProductIncrementPayload.Item(10L),
@@ -96,7 +97,7 @@ public class OutboxPopularIncrementIntegrationTest {
 
 		PopularProductIncrementPayload payload = new PopularProductIncrementPayload(
 			orderId,
-			"20260210",
+			LocalDate.now(),
 			List.of(
 				new PopularProductIncrementPayload.Item(10L)
 			)
