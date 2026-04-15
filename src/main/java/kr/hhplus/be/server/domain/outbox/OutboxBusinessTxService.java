@@ -13,6 +13,7 @@ import kr.hhplus.be.server.application.product.PopularProductIncrementPayload;
 import kr.hhplus.be.server.application.product.PopularRankPort;
 import kr.hhplus.be.server.domain.dailyProductSale.DailyProductSalesRepository;
 import kr.hhplus.be.server.infrastructure.persistence.outbox.OutboxEventRepository;
+import kr.hhplus.be.server.infrastructure.persistence.popularproductsnapshot.PopularProductSnapshotRepository;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -21,8 +22,6 @@ public class OutboxBusinessTxService {
 	private final OutboxEventRepository outboxEventRepo;
 	private final PointService pointService;
 	private final ObjectMapper objectMapper;
-
-	private final PopularRankPort popularRankPort;
 
 	private final DailyProductSalesRepository dailyProductSalesRepo;
 
