@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import kr.hhplus.be.server.application.product.PopularDateRange;
 import kr.hhplus.be.server.domain.popular_product_snapshot.PopularProductSnapshot;
 @Repository
 public interface PopularProductSnapshotRepository extends JpaRepository<PopularProductSnapshot, Long> {
@@ -31,5 +32,5 @@ public interface PopularProductSnapshotRepository extends JpaRepository<PopularP
 """, nativeQuery = true)
 	void upsert(@Param("popularDateRange") String range, @Param("json") String cacheResult, @Param("createdAt") LocalDateTime createdAt);
 
-	Optional<PopularProductSnapshot> findByRangeType(String rangeType);
+	Optional<PopularProductSnapshot> findByRangeType(PopularDateRange rangeType);
 }

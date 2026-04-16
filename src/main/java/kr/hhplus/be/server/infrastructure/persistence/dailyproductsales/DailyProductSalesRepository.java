@@ -1,4 +1,4 @@
-package kr.hhplus.be.server.domain.dailyProductSale;
+package kr.hhplus.be.server.infrastructure.persistence.dailyproductsales;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -10,6 +10,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import kr.hhplus.be.server.application.product.PopularProductRow;
+import kr.hhplus.be.server.domain.dailyProductSale.DailyProductSales;
+import kr.hhplus.be.server.domain.dailyProductSale.DailyProductSalesId;
 
 @Repository
 public interface DailyProductSalesRepository extends JpaRepository<DailyProductSales, DailyProductSalesId> {
@@ -18,14 +20,14 @@ public interface DailyProductSalesRepository extends JpaRepository<DailyProductS
 		insert into daily_product_sales (
 			sales_date,
 			product_id,
-			paid_count
+			sales_count
 		) values (
 			:salesDate,
 			:productId,
 			1
 		)
 		on duplicate key update
-			paid_count = paid_count + 1
+			sales_count = sales_count + 1
 """, nativeQuery = true)
 	int increasePaidCount(
 		@Param("salesDate") LocalDate salesDate,
@@ -37,12 +39,11 @@ public interface DailyProductSalesRepository extends JpaRepository<DailyProductS
   		p.id as productId,
   		p.name as productName,
   		p.price as price,
-  		p.sold_qty as soldQty,
   		popular.total_count as totalCount
   	from (
   		select 
   			dps.product_id, 
-  			sum(dps.paid_count) as total_count,
+  			sum(dps.sales_count) as total_count,
 		from daily_product_sales as dps
 		where dps.sales_date >= :startDate 
 			and sales_date <= :endDate 
@@ -57,4 +58,11 @@ public interface DailyProductSalesRepository extends JpaRepository<DailyProductS
 		@Param("endDate") LocalDate endDate,
 		@Param("topN") Integer topN
 	);
+
+	@Modifying
+	@Query("""
+		delete from DailyProductSales dps 
+		where dps.id.salesDate = :salesDate 
+""")
+	void deleteBySalesDate(@Param("salesDate") LocalDate salesDate);
 }

@@ -15,10 +15,10 @@ public class DailyProductSales extends BaseTimeEntity {
 	@EmbeddedId
 	private DailyProductSalesId id;
 
-	private Long saleCount;
+	private Long salesCount;
 
-	public DailyProductSales(LocalDate salesDate, Long productId, Long saleCount) {
+	public DailyProductSales(LocalDate salesDate, Long productId, Long salesCount) {
 		this.id = new DailyProductSalesId(salesDate, productId);
-		this.saleCount = saleCount;
+		this.salesCount = salesCount;
 	}
 }

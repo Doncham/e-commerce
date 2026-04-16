@@ -1,6 +1,5 @@
 package kr.hhplus.be.server.application.product;
 
-import lombok.Builder;
 import lombok.Getter;
 
 @Getter
@@ -9,17 +8,15 @@ public class PopularProductRowWithRank {
 	public Long productId;
 	public Long price;
 	public String productName;
-	public Long soldQty;
-	public Long totalCount;
+	public Long totalSoldCount;
 
-	private PopularProductRowWithRank(Integer rank, Long productId, Long price, String productName, Long soldQty,
-		Long totalCount) {
+	private PopularProductRowWithRank(Integer rank, Long productId, Long price, String productName,
+		Long totalSoldCount) {
 		this.rank = rank;
 		this.productId = productId;
 		this.price = price;
 		this.productName = productName;
-		this.soldQty = soldQty;
-		this.totalCount = totalCount;
+		this.totalSoldCount = totalSoldCount;
 	}
 
 	public static PopularProductRowWithRank from(Integer rank, PopularProductRow row) {
@@ -28,9 +25,19 @@ public class PopularProductRowWithRank {
 			row.getProductId(),
 			row.getPrice(),
 			row.getProductName(),
-			row.getSoldQty(),
-			row.getTotalCount()
+			row.getTotalSoldCount()
 		);
 	}
+
+	public static PopularProductRowWithRank from(
+		Integer rank,
+		Long productId,
+		Long price,
+		String productName,
+		Long totalSoldCount
+	) {
+		return new PopularProductRowWithRank(rank, productId, price, productName, totalSoldCount);
+	}
+
 
 }

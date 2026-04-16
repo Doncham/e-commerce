@@ -9,22 +9,22 @@ public class PopularProductItemResponse {
 	private long productId;
 	private String name;
 	private long price;
-	private long soldQty;
+	private long totalSoldCount;
 
-	public PopularProductItemResponse(int rank, long productId, String name, long price, long soldQty) {
+	public PopularProductItemResponse(int rank, long productId, String name, long price, long totalSoldCount) {
 		this.rank = rank;
 		this.productId = productId;
 		this.name = name;
 		this.price = price;
-		this.soldQty = soldQty;
+		this.totalSoldCount = totalSoldCount;
 	}
 	public static PopularProductItemResponse from(PopularProductRowWithRank product) {
 		return new PopularProductItemResponse(
 			product.getRank(),
 			product.getProductId(),
-			product.productName,
-			product.price,
-			product.soldQty
+			product.getProductName(),
+			product.getPrice(),
+			product.getTotalSoldCount()
 		);
 	}
 }

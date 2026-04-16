@@ -90,7 +90,7 @@ public class ProductService {
 
 	private PopularProductsResponse getPopularsSnapshotFromDB(PopularDateRange range) {
 
-		PopularProductSnapshot snapshot = popularProductSnapshotRepo.findByRangeType(range.toString())
+		PopularProductSnapshot snapshot = popularProductSnapshotRepo.findByRangeType(range)
 			.orElse(null);
 
 		if(snapshot == null) {

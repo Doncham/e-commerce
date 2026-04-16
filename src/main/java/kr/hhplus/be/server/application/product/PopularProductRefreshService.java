@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.hhplus.be.server.domain.dailyProductSale.DailyProductSalesRepository;
+import kr.hhplus.be.server.infrastructure.persistence.dailyproductsales.DailyProductSalesRepository;
 import kr.hhplus.be.server.infrastructure.persistence.popularproductsnapshot.PopularProductSnapshotRepository;
 import kr.hhplus.be.server.infrastructure.persistence.redis.PopularRankRedisWriter;
 import lombok.RequiredArgsConstructor;
@@ -51,9 +51,9 @@ public class PopularProductRefreshService {
 
 	private void saveSnapshotToDB(List<PopularProductRowWithRank> sevenDayResult, LocalDateTime createdAt) {
 		try {
-			String sevenDayResultJson = objectMapper.writeValueAsString(sevenDayResult);
+			String aggregateJson = objectMapper.writeValueAsString(sevenDayResult);
 			// snapshot 저장
-			popularProductSnapshotRepo.upsert(PopularDateRange.SEVEN.toString(), sevenDayResultJson, createdAt);
+			popularProductSnapshotRepo.upsert(PopularDateRange.SEVEN.toString(), aggregateJson, createdAt);
 
 		} catch (JsonProcessingException e) {
 			log.error("popular snapshot serialization failed. createdAt={}", createdAt, e);

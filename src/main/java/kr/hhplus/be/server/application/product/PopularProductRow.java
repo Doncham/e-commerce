@@ -4,6 +4,5 @@ public interface PopularProductRow {
 	Long getProductId();
 	String getProductName();
 	Long getPrice();
-	Long getSoldQty();
-	Long getTotalCount();
+	Long getTotalSoldCount();
 }
