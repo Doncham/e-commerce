@@ -3,191 +3,172 @@ package kr.hhplus.be.server.application.product;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.concurrent.TimeUnit;
+import java.time.ZoneId;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.redisson.api.RLock;
-import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.EntityManager;
-import kr.hhplus.be.server.TestFixture;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import kr.hhplus.be.server.api.product.response.PopularProductsResponse;
-import kr.hhplus.be.server.domain.address.Address;
-import kr.hhplus.be.server.domain.order.Order;
-import kr.hhplus.be.server.domain.order.ShippingInfo;
-import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
-import kr.hhplus.be.server.domain.product.Product;
-import kr.hhplus.be.server.domain.user.User;
-import kr.hhplus.be.server.infrastructure.persistence.address.AddressRepository;
-import kr.hhplus.be.server.infrastructure.persistence.order.OrderRepository;
-import kr.hhplus.be.server.infrastructure.persistence.orderproduct.OrderProductRepository;
-import kr.hhplus.be.server.infrastructure.persistence.product.ProductRepository;
-import kr.hhplus.be.server.infrastructure.persistence.user.UserRepository;
+import kr.hhplus.be.server.domain.popular_product_snapshot.PopularProductSnapshot;
+import kr.hhplus.be.server.infrastructure.persistence.popularproductsnapshot.PopularProductSnapshotRepository;
 
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
-class ProductServicePopularDbIntegrationTest {
+class ProductServicePopularIntegrationTest {
+
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	@Autowired ProductService productService;
+	@Autowired PopularProductSnapshotRepository popularProductSnapshotRepository;
+	@Autowired ObjectMapper objectMapper;
 
-	@Autowired UserRepository userRepository;
-	@Autowired AddressRepository addressRepository;
-	@Autowired ProductRepository productRepository;
-	@Autowired OrderRepository orderRepository;
-	@Autowired OrderProductRepository orderProductRepository;
+	@MockitoBean StringRedisTemplate redis;
+	@MockitoBean ValueOperations<String, String> valueOperations;
+	@MockitoBean Clock clock;
 
-	@Autowired
-	EntityManager em;
-
-	// ✅ 캐시/락을 "항상 DB 조회 경로로 강제"
-	// @MockitoBean StringRedisTemplate stringRedisTemplate;
-	// @MockitoBean ValueOperations<String, String> valueOps;
-	// @MockitoBean RedissonClient redissonClient;
-	// @MockitoBean RLock rLock;
-
-
-	@Test
-	void sevenDays_ranksBySoldQty_onlyPaidOrders() {
-		// given
-		Given given = new Given().userAndShipping();
-
-		Product p1 = given.product("AAA", 10_000L);
-		Product p2 = given.product("BBB", 20_000L);
-		Product p3 = given.product("CCC", 30_000L);
-
-		Order o1 = given.paidOrderAt(LocalDateTime.now().minusDays(1));
-		given.orderItem(o1, p1);
-		given.orderItem(o1, p2);
-
-		Order o2 = given.paidOrderAt(LocalDateTime.now().minusDays(2));
-		given.orderItem(o2, p1);
-		given.orderItem(o2, p3);
-
-		em.flush();
-		em.clear();
-
-		// when
-		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
-
-		// then: p3(10), p1(7), p2(1)
-		assertThat(res.getItems()).extracting("productId").containsExactly(p1.getId(), p2.getId(), p3.getId());
-		assertThat(res.getItems()).extracting("soldQty").containsExactly(2L, 1L, 1L);
-		assertThat(res.getItems()).extracting("rank").containsExactly(1, 2, 3);
-		assertThat(res.getRange()).isEqualTo("7d");
-		assertThat(res.getGeneratedAt()).isNotNull();
+	@BeforeEach
+	void setUp() {
+		given(redis.opsForValue()).willReturn(valueOperations);
+		given(clock.getZone()).willReturn(KST);
+		given(clock.withZone(KST)).willReturn(clock);
+		given(clock.instant()).willReturn(Instant.parse("2026-04-15T03:00:00Z")); // KST 12:00
 	}
 
 	@Test
-	void excludesNotPaidOrders() {
+	void redisHit_returnsFromRedis() throws Exception {
 		// given
-		Given given = new Given().userAndShipping();
-		Product p1 = given.product("AAA", 10_000L);
+		List<PopularProductRowWithRank> rows = List.of(
+			rankedRow(1, 10L, 1000L, "AAA", 7L),
+			rankedRow(2, 20L, 2000L, "BBB", 3L)
+		);
+		String json = objectMapper.writeValueAsString(rows);
 
-		Order paid = given.paidOrderAt(LocalDateTime.now().minusDays(1));
-		given.orderItem(paid, p1);
-
-		Order notPaid = given.notPaidOrderAt(LocalDateTime.now().minusDays(1));
-		given.orderItem(notPaid, p1);
-
-		em.flush();
-		em.clear();
+		given(valueOperations.get("rank:7d")).willReturn(json);
 
 		// when
-		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.SEVEN);
 
 		// then
-		assertThat(res.getItems()).hasSize(1);
-		assertThat(res.getItems().get(0).getProductId()).isEqualTo(p1.getId());
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(1L);
+		assertThat(result.getRange()).isEqualTo("7d");
+		assertThat(result.getItems()).hasSize(2);
+		assertThat(result.getItems()).extracting("rank").containsExactly(1, 2);
+		assertThat(result.getItems()).extracting("productId").containsExactly(10L, 20L);
+		assertThat(result.getItems()).extracting("totalSoldCount").containsExactly(7L, 3L);
 	}
 
 	@Test
-	void excludesOutOfRangeOrders() {
+	void redisMiss_fallsBackToSnapshot() throws Exception {
 		// given
-		Given given = new Given().userAndShipping();
-		Product p1 = given.product("AAA", 10_000L);
+		given(valueOperations.get("rank:30d")).willReturn(null);
 
-		Order inRange = given.paidOrderAt(LocalDateTime.now().minusDays(1));
-		given.orderItem(inRange, p1);
+		List<PopularProductRowWithRank> rows = List.of(
+			rankedRow(1, 101L, 1500L, "P1", 50L),
+			rankedRow(2, 202L, 2500L, "P2", 40L)
+		);
+		String json = objectMapper.writeValueAsString(rows);
+		LocalDateTime createdAt = LocalDateTime.of(2026, 4, 15, 0, 30);
 
-		// 40일 전 => 7d 범위 밖
-		Order outRange = given.paidOrderAt(LocalDateTime.now().minusDays(40));
-		given.orderItem(outRange, p1);
-
-		em.flush();
-		em.clear();
+		popularProductSnapshotRepository.save(
+			new PopularProductSnapshot(PopularDateRange.THIRTY, json, createdAt)
+		);
 
 		// when
-		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.THIRTY);
 
 		// then
-		assertThat(res.getItems()).hasSize(1);
-		assertThat(res.getItems().get(0).getProductId()).isEqualTo(p1.getId());
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(1L);
+		assertThat(result.getRange()).isEqualTo("30d");
+		assertThat(result.getGeneratedAt()).isEqualTo(createdAt);
+		assertThat(result.getItems()).hasSize(2);
+		assertThat(result.getItems()).extracting("productId").containsExactly(101L, 202L);
+		assertThat(result.getItems()).extracting("totalSoldCount").containsExactly(50L, 40L);
 	}
 
-	// =========================
-	// Given DSL (테스트 데이터 빌더)
-	// =========================
-	private class Given {
-		private User user;
-		private ShippingInfo shipping;
+	@Test
+	void redisAccessFail_fallsBackToSnapshot() throws Exception {
+		// given
+		given(valueOperations.get("rank:7d"))
+			.willThrow(new DataAccessResourceFailureException("redis down"));
 
-		Given userAndShipping() {
-			this.user = userRepository.save(TestFixture.user());
-			Address address = addressRepository.save(TestFixture.address(user));
-			this.shipping = TestFixture.shippingFrom(address);
-			return this;
-		}
+		List<PopularProductRowWithRank> rows = List.of(
+			rankedRow(1, 999L, 9999L, "FALLBACK", 12L)
+		);
+		String json = objectMapper.writeValueAsString(rows);
+		LocalDateTime createdAt = LocalDateTime.of(2026, 4, 15, 1, 0);
 
-		Product product(String name, long price) {
-			return productRepository.save(TestFixture.product(name, price));
-		}
+		popularProductSnapshotRepository.save(
+			new PopularProductSnapshot(PopularDateRange.SEVEN, json, createdAt)
+		);
 
-		Order paidOrderAt(LocalDateTime createdAt) {
-			Order o = orderRepository.save(TestFixture.draftOrder(user, shipping));
-			// 상태 변경
-			o.paid();
+		// when
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.SEVEN);
 
-			// ✅ createdAt을 원하는 값으로 강제
-			forceCreatedAtManagedEntity(o, createdAt);
-
-			return o;
-		}
-
-		Order notPaidOrderAt(LocalDateTime createdAt) {
-			Order o = orderRepository.save(TestFixture.draftOrder(user, shipping));
-			forceCreatedAtManagedEntity(o, createdAt);
-			return o;
-		}
-
-		void orderItem(Order order, Product p) {
-			OrderProduct op = TestFixture.orderProduct(p.getId(), p.getName(), p.getPrice());
-			op.initOrder(order);
-			orderProductRepository.save(op);
-		}
+		// then
+		assertThat(result.getGeneratedAt()).isEqualTo(createdAt);
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().get(0).getProductId()).isEqualTo(999L);
+		assertThat(result.getItems().get(0).getTotalSoldCount()).isEqualTo(12L);
 	}
 
-	/**
-	 * ✅ "저장 후" 관리 엔티티 상태에서 createdAt을 바꾸고,
-	 * flush 타이밍에 UPDATE가 나가도록 한다.
-	 *
-	 * 주의: @CreatedDate auditing이 PrePersist에서 덮는 경우가 있어
-	 * 저장 전에 set하는 방식보다 "저장 후 변경"이 안전하다.
-	 */
-	private void forceCreatedAtManagedEntity(Order order, LocalDateTime createdAt) {
-		ReflectionTestUtils.setField(order, "createdAt", createdAt);
-		ReflectionTestUtils.setField(order, "updatedAt", createdAt);
+	@Test
+	void snapshotMissing_returnsEmpty() {
+		// given
+		given(valueOperations.get("rank:7d")).willReturn(null);
+
+		// when
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.SEVEN);
+
+		// then
+		assertThat(result.getRange()).isEqualTo("7d");
+		assertThat(result.getItems()).isEmpty();
+		assertThat(result.getGeneratedAt()).isNotNull();
+	}
+
+	@Test
+	void brokenSnapshotJson_returnsEmpty() {
+		// given
+		given(valueOperations.get("rank:7d")).willReturn(null);
+
+		LocalDateTime createdAt = LocalDateTime.of(2026, 4, 15, 2, 0);
+		popularProductSnapshotRepository.save(
+			new PopularProductSnapshot(PopularDateRange.SEVEN, "{broken-json", createdAt)
+		);
+
+		// when
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.SEVEN);
+
+		// then
+		assertThat(result.getGeneratedAt()).isEqualTo(createdAt);
+		assertThat(result.getItems()).isEmpty();
+	}
+
+	private PopularProductRowWithRank rankedRow(
+		Integer rank,
+		Long productId,
+		Long price,
+		String productName,
+		Long totalSoldCount
+	) {
+		return PopularProductRowWithRank.from(
+			rank,
+			productId,
+			price,
+			productName,
+			totalSoldCount
+		);
 	}
 }

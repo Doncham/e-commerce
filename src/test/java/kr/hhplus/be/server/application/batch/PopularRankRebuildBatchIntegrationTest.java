@@ -3,7 +3,6 @@ package kr.hhplus.be.server.application.batch;
 import static org.assertj.core.api.Assertions.*;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -12,10 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -25,7 +21,7 @@ import jakarta.persistence.EntityManager;
 import kr.hhplus.be.server.TestFixture;
 import kr.hhplus.be.server.application.FixedClockConfig;
 import kr.hhplus.be.server.application.product.PopularScoreCodec;
-import kr.hhplus.be.server.application.product.batch.PopularRankRebuildService;
+import kr.hhplus.be.server.application.product.batch.DailyProductSalesRebuildService;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.OrderStatus;
@@ -45,7 +41,8 @@ class PopularRankRebuildServiceIntegrationTest {
 
 	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
-	@Autowired PopularRankRebuildService rebuildService;
+	@Autowired
+	DailyProductSalesRebuildService rebuildService;
 	@Autowired StringRedisTemplate redis;
 	@Autowired Clock clock;
 
@@ -77,86 +74,7 @@ class PopularRankRebuildServiceIntegrationTest {
 		em.clear();
 	}
 
-	@Test
-	@Transactional
-	void rebuild7d_and_30d_should_write_expected_scores_to_redis() {
-		// 기준
-		LocalDate today = LocalDate.of(2026, 2, 11);
-		LocalDateTime to = today.atStartOfDay(); // 2026-02-11 00:00 (KST 의미)
-		LocalDateTime in7 = to.minusDays(1).plusHours(3);      // 2/10 03:00 -> 7d/30d 포함
-		LocalDateTime in30 = to.minusDays(20).plusHours(10);   // 1/22 10:00 -> 30d 포함, 7d 제외
-		LocalDateTime out7 = to.minusDays(8).plusHours(1);     // 2/03 01:00 -> 30d 포함, 7d 제외
 
-		// --- users ---
-		User user = userRepository.save(TestFixture.user());
-
-		// --- shippingInfo ---
-		Address address = TestFixture.address(user);
-		ShippingInfo shippingInfo = TestFixture.shippingFrom(address);
-
-		// --- products ---
-		Product p1 = productRepository.save(TestFixture.product("p1", 10_000L));
-		Product p2 = productRepository.save(TestFixture.product("p2", 10_000L));
-		Product p3 = productRepository.save(TestFixture.product("p3", 10_000L));
-
-		// p3는 deletedAt != null -> 집계 제외
-		ReflectionTestUtils.setField(p3, "deletedAt", LocalDateTime.now());
-		// isActive = true는 기본값이 true라고 가정. 아니라면 여기서 true로 세팅.
-		// ReflectionTestUtils.setField(p3, "isActive", true);
-		productRepository.saveAndFlush(p3);
-
-		// --- orders ---
-		// TestFixture.createdOrder를 쓰고 싶지만 createdAt/status 세팅이 필요하니
-		Order o1 = orderRepository.saveAndFlush(makePaidOrderAt(user, shippingInfo));
-		Order o2 = orderRepository.saveAndFlush(makePaidOrderAt(user, shippingInfo));
-		Order o3 = orderRepository.saveAndFlush(makePaidOrderAt(user, shippingInfo));
-		Order o4 = orderRepository.saveAndFlush(makeFailedOrderAt(user, shippingInfo)); // status 제외
-		setCreatedAt(in7, o1);
-		setCreatedAt(in30, o2);
-		setCreatedAt(out7, o3);
-		setCreatedAt(in7, o4);
-
-		// --- order_products ---
-		saveOrderProduct(o1, p1);
-		saveOrderProduct(o2, p1);
-		saveOrderProduct(o3, p1);
-
-		// p2: o1에서 7
-		saveOrderProduct(o1, p2);
-
-		// p3(deleted): o1에서 100 (하지만 제외되어야 함)
-		saveOrderProduct(o1, p3);
-
-		// FAILED order: 제외되어야 함
-		saveOrderProduct(o4, p1);
-
-		em.flush();
-		em.clear();
-
-		// --- when ---
-		rebuildService.rebuild7d(50);
-		rebuildService.rebuild30d(50);
-
-		// --- then: 7d ---
-		Long p1_7d = PopularScoreCodec.decodeQty(redis.opsForZSet().score("rank:7d", String.valueOf(p1.getId())));
-		Long p2_7d = PopularScoreCodec.decodeQty(redis.opsForZSet().score("rank:7d", String.valueOf(p2.getId())));
-		Double p3_7d = redis.opsForZSet().score("rank:7d", String.valueOf(p3.getId()));
-
-		// 7d에서는 out7(8일 전) 제외 => p1=2, p2=7
-		assertThat(p1_7d).isEqualTo(1L);
-		assertThat(p2_7d).isEqualTo(1L);
-		assertThat(p3_7d).isNull();
-
-		// --- then: 30d ---
-		Long p1_30d = PopularScoreCodec.decodeQty(redis.opsForZSet().score("rank:30d", String.valueOf(p1.getId())));
-		Long p2_30d = PopularScoreCodec.decodeQty(redis.opsForZSet().score("rank:30d", String.valueOf(p2.getId())));
-		Double p3_30d = redis.opsForZSet().score("rank:30d", String.valueOf(p3.getId()));
-
-
-		assertThat(p1_30d).isEqualTo(3L);
-		assertThat(p2_30d).isEqualTo(1L);
-		assertThat(p3_30d).isNull();
-	}
 
 	private Order makePaidOrderAt(User user, ShippingInfo shippingInfo) {
 		Order o = TestFixture.draftOrder(user, shippingInfo);

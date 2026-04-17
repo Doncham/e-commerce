@@ -5,7 +5,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.*;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -15,45 +17,41 @@ import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
-import org.springframework.data.domain.Pageable;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.redis.core.*;
-import org.springframework.test.util.ReflectionTestUtils;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.hhplus.be.server.api.product.response.PopularProductsResponse;
-import kr.hhplus.be.server.domain.order.OrderStatus;
-import kr.hhplus.be.server.domain.product.Product;
+import kr.hhplus.be.server.domain.popular_product_snapshot.PopularProductSnapshot;
 import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
-import kr.hhplus.be.server.infrastructure.persistence.orderproduct.OrderProductRepository;
 import kr.hhplus.be.server.infrastructure.persistence.popularproductsnapshot.PopularProductSnapshotRepository;
-import kr.hhplus.be.server.infrastructure.persistence.product.ProductRepository;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-class PopularProductZSetReadTest {
+class ProductServicePopularReadTest {
+
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
 	@Mock InventoryRepository inventoryRepository;
-	@Mock OrderProductRepository orderProductRepository;
-	@Mock ProductRepository productRepository;
-
+	@Mock PopularProductSnapshotRepository popularProductSnapshotRepository;
 	@Mock StringRedisTemplate redis;
-	@Mock ZSetOperations<String, String> zsetOps;
-	@Mock ValueOperations<String, String> valueOps;
-
+	@Mock ValueOperations<String, String> valueOperations;
 	@Mock ObjectMapper objectMapper;
 
 	ProductService productService;
-	PopularProductRefreshService popularProductRefreshService;
-	PopularProductSnapshotRepository popularProductSnapshotRepository;
 	Clock clock;
 
 	@BeforeEach
 	void setUp() {
-		given(redis.opsForZSet()).willReturn(zsetOps);
-		given(redis.opsForValue()).willReturn(valueOps);
+		clock = Clock.fixed(
+			Instant.parse("2026-04-15T03:00:00Z"), // KST 12:00
+			KST
+		);
+		given(redis.opsForValue()).willReturn(valueOperations);
 
-		// @InjectMocks 대신 직접 생성(주입 누락으로 인한 NPE 방지)
 		productService = new ProductService(
 			inventoryRepository,
 			popularProductSnapshotRepository,
@@ -64,265 +62,194 @@ class PopularProductZSetReadTest {
 	}
 
 	@Test
-	void zsetHit_andSnapAllHit_returnsFromSnapCache_only() throws Exception {
+	void redisHit_returnsFromRedis_only() throws Exception {
 		// given
-		String key = "rank:zset:7d";
+		String key = "rank:7d";
+		String json = "REDIS_JSON";
 
-		Set<ZSetOperations.TypedTuple<String>> tuples = linkedTuples(
-			tuple("2", PopularScoreCodec.encode(7, 2)),
-			tuple("1", PopularScoreCodec.encode(2, 1))
+		List<PopularProductRowWithRank> rows = List.of(
+			PopularProductRowWithRank.from(
+				1,
+				popularRow(2L, "P2", 2000L,7L)
+			),
+			PopularProductRowWithRank.from(
+				2,
+				popularRow(1L, "P1", 1000L, 2L)
+			)
 		);
-		given(zsetOps.reverseRangeWithScores(eq(key), eq(0L), eq(19L))).willReturn(tuples);
 
-		// multiGet 결과에 null이 없으니 List.of 사용해도 OK
-		given(valueOps.multiGet(eq(List.of("product:snap:2", "product:snap:1"))))
-			.willReturn(List.of("JSON2", "JSON1"));
-
-		ProductSnapshot s2 = snapMock(2L, "P2", 2000L);
-		ProductSnapshot s1 = snapMock(1L, "P1", 1000L);
-
-		given(objectMapper.readValue("JSON2", ProductSnapshot.class)).willReturn(s2);
-		given(objectMapper.readValue("JSON1", ProductSnapshot.class)).willReturn(s1);
+		given(valueOperations.get(key)).willReturn(json);
+		given(objectMapper.readValue(eq(json), any(TypeReference.class))).willReturn(rows);
 
 		// when
-		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.SEVEN);
 
 		// then
-		assertThat(res.getItems()).hasSize(2);
-		assertThat(res.getItems().get(0).getRank()).isEqualTo(1);
-		assertThat(res.getItems().get(0).getProductId()).isEqualTo(2L);
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(7L);
+		assertThat(result.getItems()).hasSize(2);
+		assertThat(result.getItems().get(0).getRank()).isEqualTo(1);
+		assertThat(result.getItems().get(0).getProductId()).isEqualTo(2L);
+		assertThat(result.getItems().get(0).getTotalSoldCount()).isEqualTo(7L);
 
-		assertThat(res.getItems().get(1).getRank()).isEqualTo(2);
-		assertThat(res.getItems().get(1).getProductId()).isEqualTo(1L);
-		assertThat(res.getItems().get(1).getSoldQty()).isEqualTo(2L);
+		assertThat(result.getItems().get(1).getRank()).isEqualTo(2);
+		assertThat(result.getItems().get(1).getProductId()).isEqualTo(1L);
+		assertThat(result.getItems().get(1).getTotalSoldCount()).isEqualTo(2L);
 
-		then(orderProductRepository).shouldHaveNoInteractions();
-		then(productRepository).shouldHaveNoInteractions();
-		//then(redis).should(never()).executePipelined(any());
+		then(popularProductSnapshotRepository).shouldHaveNoInteractions();
 	}
 
 	@Test
-	void zsetHit_andSnapPartialMiss_queriesDbForMiss_andWarmsUpMiss() throws Exception {
+	void redisMiss_fallsBackToDbSnapshot() throws Exception {
 		// given
-		String key = "rank:zset:7d";
+		String key = "rank:7d";
+		String snapshotJson = "SNAPSHOT_JSON";
+		LocalDateTime createdAt = LocalDateTime.of(2026, 4, 15, 0, 30);
 
-		Set<ZSetOperations.TypedTuple<String>> tuples = linkedTuples(
-			tuple("2", PopularScoreCodec.encode(7, 2)),
-			tuple("1", PopularScoreCodec.encode(2, 1))
+		PopularProductSnapshot snapshot = mock(PopularProductSnapshot.class);
+		given(snapshot.getJson()).willReturn(snapshotJson);
+		given(snapshot.getCreatedAt()).willReturn(createdAt);
+
+		List<PopularProductRowWithRank> rows = List.of(
+			PopularProductRowWithRank.from(
+				1,
+				popularRow(10L, "A", 1000L, 50L)
+			)
 		);
-		given(zsetOps.reverseRangeWithScores(eq(key), eq(0L), eq(19L))).willReturn(tuples);
 
-		// ✅ null을 포함해야 하므로 List.of("JSON2", null) 쓰면 NPE 터짐
-		given(valueOps.multiGet(eq(List.of("product:snap:2", "product:snap:1"))))
-			.willReturn(Arrays.asList("JSON2", null));
-
-		ProductSnapshot s2 = snapMock(2L, "P2", 2000L);
-		given(objectMapper.readValue("JSON2", ProductSnapshot.class)).willReturn(s2);
-
-		// miss(1)만 DB에서 product 조회
-		Product p1 = product(1L, "P1", 1000L);
-		given(productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(eq(List.of(1L))))
-			.willReturn(List.of(p1));
-
-		// warmup pipeline 수행
-		given(redis.executePipelined(any(RedisCallback.class))).willReturn(List.of());
-		given(objectMapper.writeValueAsString(any(ProductSnapshot.class))).willReturn("NEWJSON");
+		given(valueOperations.get(key)).willReturn(null);
+		given(popularProductSnapshotRepository.findByRangeType(PopularDateRange.SEVEN))
+			.willReturn(Optional.of(snapshot));
+		given(objectMapper.readValue(eq(snapshotJson), any(TypeReference.class))).willReturn(rows);
 
 		// when
-		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.SEVEN);
 
 		// then
-		assertThat(res.getItems()).hasSize(2);
-		assertThat(res.getItems().get(0).getProductId()).isEqualTo(2L);
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(7L);
-		assertThat(res.getItems().get(1).getProductId()).isEqualTo(1L);
-		assertThat(res.getItems().get(1).getSoldQty()).isEqualTo(2L);
-
-		then(orderProductRepository).shouldHaveNoInteractions();
-		then(productRepository).should().findByIdInAndIsActiveTrueAndDeletedAtIsNull(eq(List.of(1L)));
-		then(redis).should().executePipelined(any(RedisCallback.class));
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().get(0).getProductId()).isEqualTo(10L);
+		assertThat(result.getItems().get(0).getTotalSoldCount()).isEqualTo(50L);
+		assertThat(result.getGeneratedAt()).isEqualTo(createdAt);
 	}
 
 	@Test
-	void finalKeyEmpty_butOldKeyHasData_usesOldKey_andDoesNotCallDbAggregation() throws Exception {
+	void redisAccessFail_fallsBackToDbSnapshot() throws Exception {
 		// given
-		String finalKey = "rank:zset:30d";
-		String oldKey = finalKey + ":old";
+		String key = "rank:30d";
+		String snapshotJson = "SNAPSHOT_JSON";
+		LocalDateTime createdAt = LocalDateTime.of(2026, 4, 15, 0, 45);
 
-		given(zsetOps.reverseRangeWithScores(eq(finalKey), eq(0L), eq(19L))).willReturn(Set.of());
+		PopularProductSnapshot snapshot = mock(PopularProductSnapshot.class);
+		given(snapshot.getJson()).willReturn(snapshotJson);
+		given(snapshot.getCreatedAt()).willReturn(createdAt);
 
-		Set<ZSetOperations.TypedTuple<String>> oldTuples = linkedTuples(
-			tuple("202", PopularScoreCodec.encode(40, 202))
+		List<PopularProductRowWithRank> rows = List.of(
+			PopularProductRowWithRank.from(
+				1,
+				popularRow(202L, "B", 2000L, 40L)
+			)
 		);
-		given(zsetOps.reverseRangeWithScores(eq(oldKey), eq(0L), eq(19L))).willReturn(oldTuples);
 
-		// snap miss => null 포함 리스트 필요
-		given(valueOps.multiGet(anyList())).willReturn(Collections.singletonList(null));
-
-		Product p202 = product(202L, "B", 2000L);
-		given(productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(eq(List.of(202L))))
-			.willReturn(List.of(p202));
-
-		given(redis.executePipelined(any(RedisCallback.class))).willReturn(List.of());
-		given(objectMapper.writeValueAsString(any(ProductSnapshot.class))).willReturn("NEW202");
+		given(valueOperations.get(key))
+			.willThrow(new DataAccessResourceFailureException("redis down"));
+		given(popularProductSnapshotRepository.findByRangeType(PopularDateRange.THIRTY))
+			.willReturn(Optional.of(snapshot));
+		given(objectMapper.readValue(eq(snapshotJson), any(TypeReference.class))).willReturn(rows);
 
 		// when
-		PopularProductsResponse res = productService.getPopulars(PopularDateRange.THIRTY);
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.THIRTY);
 
 		// then
-		assertThat(res.getItems()).hasSize(1);
-		assertThat(res.getItems().get(0).getProductId()).isEqualTo(202L);
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(40L);
-
-		// ✅ 집계 DB는 절대 타면 안 됨
-		then(orderProductRepository).shouldHaveNoInteractions();
-
-		// ✅ product 상세 조회는 탐
-		then(productRepository).should().findByIdInAndIsActiveTrueAndDeletedAtIsNull(eq(List.of(202L)));
-
-		// ✅ multiGet이 요청한 key가 202 포함하는지 확인(키 하드코딩 결합 제거)
-		@SuppressWarnings("unchecked")
-		ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass((Class) List.class);
-		then(valueOps).should().multiGet(keysCaptor.capture());
-		assertThat(keysCaptor.getValue()).hasSize(1);
-		assertThat(keysCaptor.getValue().get(0)).isEqualTo("product:snap:202");
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().get(0).getProductId()).isEqualTo(202L);
+		assertThat(result.getItems().get(0).getTotalSoldCount()).isEqualTo(40L);
+		assertThat(result.getGeneratedAt()).isEqualTo(createdAt);
 	}
 
 	@Test
-	void finalKeyEmpty_andOldKeyEmpty_thenFallbackDbAggregation() {
+	void redisJsonBroken_fallsBackToDbSnapshot() throws Exception {
 		// given
-		String finalKey = "rank:zset:30d";
-		String oldKey = finalKey + ":old";
+		String key = "rank:7d";
+		String redisJson = "BROKEN_REDIS_JSON";
+		String snapshotJson = "SNAPSHOT_JSON";
+		LocalDateTime createdAt = LocalDateTime.of(2026, 4, 15, 1, 0);
 
-		given(zsetOps.reverseRangeWithScores(eq(finalKey), eq(0L), eq(19L))).willReturn(Set.of());
-		given(zsetOps.reverseRangeWithScores(eq(oldKey), eq(0L), eq(19L))).willReturn(Set.of());
+		PopularProductSnapshot snapshot = mock(PopularProductSnapshot.class);
+		given(snapshot.getJson()).willReturn(snapshotJson);
+		given(snapshot.getCreatedAt()).willReturn(createdAt);
 
-		List<ProductSoldQtyDTO> agg = List.of(
-			new ProductSoldQtyDTO(101L, 50L),
-			new ProductSoldQtyDTO(202L, 40L)
+		List<PopularProductRowWithRank> snapshotRows = List.of(
+			PopularProductRowWithRank.from(
+				1,
+				popularRow(999L, "Fallback", 3000L, 12L)
+			)
 		);
-		given(orderProductRepository.findPopularProduct(any(), any(), eq(OrderStatus.PAID), any(Pageable.class)))
-			.willReturn(agg);
 
-		Product p101 = product(101L, "A", 1000L);
-		Product p202 = product(202L, "B", 2000L);
-		given(productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(eq(List.of(101L, 202L))))
-			.willReturn(List.of(p101, p202));
+		given(valueOperations.get(key)).willReturn(redisJson);
+		given(objectMapper.readValue(eq(redisJson), any(TypeReference.class)))
+			.willThrow(JsonProcessingException.class);
+		given(popularProductSnapshotRepository.findByRangeType(PopularDateRange.SEVEN))
+			.willReturn(Optional.of(snapshot));
+		given(objectMapper.readValue(eq(snapshotJson), any(TypeReference.class))).willReturn(snapshotRows);
 
 		// when
-		PopularProductsResponse res = productService.getPopulars(PopularDateRange.THIRTY);
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.SEVEN);
 
 		// then
-		assertThat(res.getItems()).hasSize(2);
-		assertThat(res.getItems().get(0).getProductId()).isEqualTo(101L);
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(50L);
-
-		// pageSize=20 보장
-		ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
-		then(orderProductRepository).should()
-			.findPopularProduct(any(LocalDateTime.class), any(LocalDateTime.class), eq(OrderStatus.PAID), pageableCaptor.capture());
-		assertThat(pageableCaptor.getValue().getPageNumber()).isEqualTo(0);
-		assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(20);
+		assertThat(result.getItems()).hasSize(1);
+		assertThat(result.getItems().get(0).getProductId()).isEqualTo(999L);
+		assertThat(result.getGeneratedAt()).isEqualTo(createdAt);
 	}
 
 	@Test
-	void zsetHasOnlyInvalidTuples_thenFallbackDbAggregation() {
+	void snapshotNotFound_returnsEmpty() {
 		// given
-		String key = "rank:zset:7d";
-		String oldKey = key + ":old";
+		String key = "rank:7d";
 
-		Set<ZSetOperations.TypedTuple<String>> bad = linkedTuples(
-			tuple(null, PopularScoreCodec.encode(10, 1)), // value null
-			tuple("1", null)                               // score null
-		);
-
-		given(zsetOps.reverseRangeWithScores(eq(key), eq(0L), eq(19L))).willReturn(bad);
-		given(zsetOps.reverseRangeWithScores(eq(oldKey), eq(0L), eq(19L))).willReturn(Set.of());
-
-		List<ProductSoldQtyDTO> agg = List.of(new ProductSoldQtyDTO(101L, 50L));
-		given(orderProductRepository.findPopularProduct(any(), any(), eq(OrderStatus.PAID), any(Pageable.class)))
-			.willReturn(agg);
-
-		Product p101 = product(101L, "A", 1000L);
-		given(productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(eq(List.of(101L))))
-			.willReturn(List.of(p101));
+		given(valueOperations.get(key)).willReturn(null);
+		given(popularProductSnapshotRepository.findByRangeType(PopularDateRange.SEVEN))
+			.willReturn(Optional.empty());
 
 		// when
-		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.SEVEN);
 
 		// then
-		assertThat(res.getItems()).hasSize(1);
-		assertThat(res.getItems().get(0).getProductId()).isEqualTo(101L);
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(50L);
+		assertThat(result.getItems()).isEmpty();
 	}
 
 	@Test
-	void zsetHit_butSomeProductsMissingInDb_skipsMissing_andRanksAreCompacted() throws Exception {
+	void snapshotJsonBroken_returnsEmpty() throws Exception {
 		// given
-		String key = "rank:zset:7d";
+		String key = "rank:30d";
+		String snapshotJson = "BROKEN_SNAPSHOT_JSON";
+		LocalDateTime createdAt = LocalDateTime.of(2026, 4, 15, 2, 0);
 
-		Set<ZSetOperations.TypedTuple<String>> tuples = linkedTuples(
-			tuple("101", PopularScoreCodec.encode(50, 101)),
-			tuple("202", PopularScoreCodec.encode(40, 202)),
-			tuple("303", PopularScoreCodec.encode(30, 303))
-		);
-		given(zsetOps.reverseRangeWithScores(eq(key), eq(0L), eq(19L))).willReturn(tuples);
+		PopularProductSnapshot snapshot = mock(PopularProductSnapshot.class);
+		given(snapshot.getJson()).willReturn(snapshotJson);
+		given(snapshot.getCreatedAt()).willReturn(createdAt);
 
-		// 스냅샷 전부 miss (null 포함 => Arrays.asList 써야 함)
-		given(valueOps.multiGet(eq(List.of("product:snap:101", "product:snap:202", "product:snap:303"))))
-			.willReturn(Arrays.asList(null, null, null));
-
-		// DB에서 202는 빠짐(비활성/삭제)
-		Product p101 = product(101L, "A", 1000L);
-		Product p303 = product(303L, "C", 3000L);
-		given(productRepository.findByIdInAndIsActiveTrueAndDeletedAtIsNull(eq(List.of(101L, 202L, 303L))))
-			.willReturn(List.of(p101, p303));
-
-		given(redis.executePipelined(any(RedisCallback.class))).willReturn(List.of());
-		given(objectMapper.writeValueAsString(any(ProductSnapshot.class))).willReturn("NEW");
+		given(valueOperations.get(key)).willReturn(null);
+		given(popularProductSnapshotRepository.findByRangeType(PopularDateRange.THIRTY))
+			.willReturn(Optional.of(snapshot));
+		given(objectMapper.readValue(eq(snapshotJson), any(TypeReference.class)))
+			.willThrow(mock(JsonProcessingException.class));
 
 		// when
-		PopularProductsResponse res = productService.getPopulars(PopularDateRange.SEVEN);
+		PopularProductsResponse result = productService.getPopulars(PopularDateRange.THIRTY);
 
 		// then
-		assertThat(res.getItems()).hasSize(2);
-
-		assertThat(res.getItems().get(0).getRank()).isEqualTo(1);
-		assertThat(res.getItems().get(0).getProductId()).isEqualTo(101L);
-		assertThat(res.getItems().get(0).getSoldQty()).isEqualTo(50L);
-
-		assertThat(res.getItems().get(1).getRank()).isEqualTo(2);
-		assertThat(res.getItems().get(1).getProductId()).isEqualTo(303L);
-		assertThat(res.getItems().get(1).getSoldQty()).isEqualTo(30L);
-
-		then(orderProductRepository).shouldHaveNoInteractions();
+		assertThat(result.getItems()).isEmpty();
+		assertThat(result.getGeneratedAt()).isEqualTo(createdAt);
 	}
-
-	// ===== helpers =====
-
-	private Product product(Long id, String name, Long price) {
-		Product p = Product.createProduct(name, "desc", price);
-		ReflectionTestUtils.setField(p, "id", id);
-		return p;
-	}
-
-	private ProductSnapshot snapMock(Long id, String name, Long price) {
-		ProductSnapshot s = mock(ProductSnapshot.class);
-		given(s.getProductId()).willReturn(id);
-		given(s.getName()).willReturn(name);
-		given(s.getPrice()).willReturn(price);
-		return s;
-	}
-
-	private ZSetOperations.TypedTuple<String> tuple(String value, Double score) {
-		return new org.springframework.data.redis.core.DefaultTypedTuple<>(value, score);
-	}
-
-	@SafeVarargs
-	private final Set<ZSetOperations.TypedTuple<String>> linkedTuples(ZSetOperations.TypedTuple<String>... tuples) {
-		Set<ZSetOperations.TypedTuple<String>> set = new LinkedHashSet<>();
-		for (var t : tuples) set.add(t);
-		return set;
+	private PopularProductRow popularRow(
+		Long productId,
+		String productName,
+		Long price,
+		Long totalSoldCount
+	) {
+		PopularProductRow row = mock(PopularProductRow.class);
+		given(row.getProductId()).willReturn(productId);
+		given(row.getProductName()).willReturn(productName);
+		given(row.getPrice()).willReturn(price);
+		given(row.getTotalSoldCount()).willReturn(totalSoldCount);
+		return row;
 	}
 }
