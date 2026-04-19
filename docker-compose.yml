@@ -1,17 +1,52 @@
 version: '3'
 services:
-  mysql:
+  mysql-primary:
     image: mysql:8.0
+    container_name: mysql-primary
     ports:
       - "3306:3306"
     environment:
-      - MYSQL_ROOT_PASSWORD=root
-      - MYSQL_USER=application
-      - MYSQL_PASSWORD=application
-      - MYSQL_DATABASE=hhplus
+      MYSQL_ROOT_USER: root
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: ecdb
     volumes:
-      - ./data/mysql/:/var/lib/mysql
+      - ecdb_mysql_data:/var/lib/mysql
+      - ./mysql/primary/my.cnf:/etc/mysql/conf.d/my.cnf
+    networks:
+      - mysql-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p1234"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  mysql-replica:
+    image: mysql:8.0
+    container_name: mysql-replica
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_ROOT_USER: root
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: ecdb
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    volumes:
+      - replica_mysql_data:/var/lib/mysql
+      - ./mysql/replica/my.cnf:/etc/mysql/conf.d/my.cnf
+    networks:
+      - mysql-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p1234"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
+volumes:
+  ecdb_mysql_data:
+    external: true
+  replica_mysql_data:
 networks:
-  default:
+  mysql-net:
     driver: bridge
+
