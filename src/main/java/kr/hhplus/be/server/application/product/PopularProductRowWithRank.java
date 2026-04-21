@@ -1,8 +1,11 @@
 package kr.hhplus.be.server.application.product;
 
+import kr.hhplus.be.server.application.product.dto.PopularProductRow;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
+@NoArgsConstructor
 public class PopularProductRowWithRank {
 	public Integer rank;
 	public Long productId;

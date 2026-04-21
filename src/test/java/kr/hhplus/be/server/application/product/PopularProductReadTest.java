@@ -25,6 +25,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.hhplus.be.server.api.product.response.PopularProductsResponse;
+import kr.hhplus.be.server.application.product.dto.PopularProductRow;
 import kr.hhplus.be.server.domain.popular_product_snapshot.PopularProductSnapshot;
 import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
 import kr.hhplus.be.server.infrastructure.persistence.popularproductsnapshot.PopularProductSnapshotRepository;

@@ -9,7 +9,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import kr.hhplus.be.server.application.product.PopularDateRange;
@@ -32,8 +31,7 @@ public class PopularProductSnapshot {
 	@Enumerated(EnumType.STRING)
 	@Column(name = "range_type", nullable = false)
 	private PopularDateRange rangeType;
-	@Lob
-	@Column(nullable = false)
+	@Column(nullable = false, columnDefinition = "LONGTEXT")
 	private String json;
 	@Column(nullable = false)
 	private LocalDateTime createdAt;

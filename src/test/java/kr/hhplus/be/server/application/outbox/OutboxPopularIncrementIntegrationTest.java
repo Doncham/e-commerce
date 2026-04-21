@@ -1,7 +1,6 @@
 package kr.hhplus.be.server.application.outbox;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.BDDMockito.given;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -16,7 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.persistence.EntityManager;
-import kr.hhplus.be.server.application.product.PopularProductIncrementPayload;
+import kr.hhplus.be.server.application.product.dto.PopularProductIncrementPayload;
 import kr.hhplus.be.server.domain.dailyProductSale.DailyProductSales;
 import kr.hhplus.be.server.domain.dailyProductSale.DailyProductSalesId;
 import kr.hhplus.be.server.domain.outbox.AggregateType;

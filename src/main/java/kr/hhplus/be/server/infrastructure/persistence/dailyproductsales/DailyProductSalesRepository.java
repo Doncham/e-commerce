@@ -9,7 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
-import kr.hhplus.be.server.application.product.PopularProductRow;
+import kr.hhplus.be.server.application.product.dto.PopularProductRow;
 import kr.hhplus.be.server.domain.dailyProductSale.DailyProductSales;
 import kr.hhplus.be.server.domain.dailyProductSale.DailyProductSalesId;
 
@@ -43,7 +43,7 @@ public interface DailyProductSalesRepository extends JpaRepository<DailyProductS
   	from (
   		select 
   			dps.product_id, 
-  			sum(dps.sales_count) as total_count,
+  			sum(dps.sales_count) as total_count
 		from daily_product_sales as dps
 		where dps.sales_date >= :startDate 
 			and sales_date <= :endDate 

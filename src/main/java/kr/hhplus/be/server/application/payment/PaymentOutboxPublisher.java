@@ -12,7 +12,7 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import kr.hhplus.be.server.application.product.PopularProductIncrementPayload;
+import kr.hhplus.be.server.application.product.dto.PopularProductIncrementPayload;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.outbox.AggregateType;
 import kr.hhplus.be.server.domain.outbox.EventType;

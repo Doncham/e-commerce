@@ -1,28 +1,21 @@
 package kr.hhplus.be.server.application.batch;
 
-import static org.assertj.core.api.Assertions.*;
-
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
 import kr.hhplus.be.server.TestFixture;
 import kr.hhplus.be.server.application.FixedClockConfig;
-import kr.hhplus.be.server.application.product.PopularScoreCodec;
 import kr.hhplus.be.server.application.product.batch.DailyProductSalesRebuildService;
-import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.order.ShippingInfo;

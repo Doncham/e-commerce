@@ -11,7 +11,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.hhplus.be.server.application.point.PointService;
-import kr.hhplus.be.server.application.product.PopularProductIncrementPayload;
+import kr.hhplus.be.server.application.product.dto.PopularProductIncrementPayload;
 import kr.hhplus.be.server.infrastructure.persistence.dailyproductsales.DailyProductSalesRepository;
 import kr.hhplus.be.server.infrastructure.persistence.outbox.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;

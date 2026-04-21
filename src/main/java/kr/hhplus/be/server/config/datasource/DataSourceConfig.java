@@ -82,7 +82,7 @@ public class DataSourceConfig {
 	) {
 		return builder
 			.dataSource(dataSource)
-			.packages("com.example.demo.domain")
+			.packages("kr.hhplus.be.server.domain")
 			.persistenceUnit("default")
 			.build();
 	}

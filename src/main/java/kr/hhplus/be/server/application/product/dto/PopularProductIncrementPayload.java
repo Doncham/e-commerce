@@ -1,4 +1,4 @@
-package kr.hhplus.be.server.application.product;
+package kr.hhplus.be.server.application.product.dto;
 
 import java.time.LocalDate;
 import java.util.List;

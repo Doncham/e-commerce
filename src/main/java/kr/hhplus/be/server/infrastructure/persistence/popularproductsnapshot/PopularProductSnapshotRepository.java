@@ -26,7 +26,7 @@ public interface PopularProductSnapshotRepository extends JpaRepository<PopularP
 			:createdAt
 		)
 		on duplicate key update
-		json = :json
+		json = :json,
 		created_at = :createdAt
 
 """, nativeQuery = true)
