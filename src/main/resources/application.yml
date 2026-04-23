@@ -1,15 +1,4 @@
 spring:
-  datasource:
-    primary:
-      url: jdbc:mysql://localhost:3306/ecdb
-      username: root
-      password: 1234
-      driver-class-name: com.mysql.cj.jdbc.Driver
-    replica:
-      url: jdbc:mysql://localhost:3308/ecdb
-      username: root
-      password: 1234
-      driver-class-name: com.mysql.cj.jdbc.Driver
   sql:
     init:
       mode: always
@@ -37,6 +26,17 @@ spring:
       file: classpath:redisson.yml
 
 app:
+  datasource:
+    primary:
+      url: jdbc:mysql://localhost:6401/ecdb
+      username: appuser
+      password: 1234
+      driver-class-name: com.mysql.cj.jdbc.Driver
+    replica:
+      url: jdbc:mysql://localhost:6402/ecdb
+      username: appuser
+      password: 1234
+      driver-class-name: com.mysql.cj.jdbc.Driver
   redisson:
     enabled: true
 logging:

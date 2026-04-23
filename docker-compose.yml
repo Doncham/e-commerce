@@ -19,9 +19,9 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-  mysql-replica:
+  mysql-replica1:
     image: mysql:8.0
-    container_name: mysql-replica
+    container_name: mysql-replica1
     ports:
       - "3308:3306"
     environment:
@@ -32,8 +32,8 @@ services:
       mysql-primary:
         condition: service_healthy
     volumes:
-      - replica_mysql_data:/var/lib/mysql
-      - ./mysql/replica/my.cnf:/etc/mysql/conf.d/my.cnf
+      - replica1_mysql_data:/var/lib/mysql
+      - ./mysql/replica/my1.cnf:/etc/mysql/conf.d/my.cnf
     networks:
       - mysql-net
     healthcheck:
@@ -42,10 +42,53 @@ services:
       timeout: 3s
       retries: 20
 
+  mysql-replica2:
+    image: mysql:8.0
+    container_name: mysql-replica2
+    ports:
+      - "3309:3306"
+    environment:
+      MYSQL_ROOT_USER: root
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: ecdb
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    volumes:
+      - replica2_mysql_data:/var/lib/mysql
+      - ./mysql/replica/my2.cnf:/etc/mysql/conf.d/my.cnf
+    networks:
+      - mysql-net
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-p1234" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  proxysql:
+    image: proxysql/proxysql:latest
+    container_name: proxysql
+    ports:
+      - "6032:6032"
+      - "6033:6033"
+      - "6401:6401"
+      - "6402:6402"
+    networks:
+      - mysql-net
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+      mysql-replica1:
+        condition: service_healthy
+      mysql-replica2:
+        condition: service_healthy
+
+
+
 volumes:
   ecdb_mysql_data:
     external: true
-  replica_mysql_data:
+  replica1_mysql_data:
+  replica2_mysql_data:
 networks:
   mysql-net:
     driver: bridge
