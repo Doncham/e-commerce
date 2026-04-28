@@ -30,12 +30,12 @@ app:
     primary:
       url: jdbc:mysql://localhost:6401/ecdb
       username: appuser
-      password: 1234
+      password: app1234
       driver-class-name: com.mysql.cj.jdbc.Driver
     replica:
       url: jdbc:mysql://localhost:6402/ecdb
       username: appuser
-      password: 1234
+      password: app1234
       driver-class-name: com.mysql.cj.jdbc.Driver
   redisson:
     enabled: true

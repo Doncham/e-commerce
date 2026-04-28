@@ -22,7 +22,7 @@ import jakarta.persistence.EntityManagerFactory;
 @Configuration
 public class DataSourceConfig {
 	@Bean
-	@ConfigurationProperties("spring.datasource.primary")
+	@ConfigurationProperties("app.datasource.primary")
 	public DataSourceProperties primaryDataSourceProperties() {
 		return new DataSourceProperties();
 	}
@@ -35,7 +35,7 @@ public class DataSourceConfig {
 	}
 
 	@Bean
-	@ConfigurationProperties("spring.datasource.replica")
+	@ConfigurationProperties("app.datasource.replica")
 	public DataSourceProperties replicaDataSourceProperties() {
 		return new DataSourceProperties();
 	}

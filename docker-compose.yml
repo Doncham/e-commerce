@@ -65,7 +65,7 @@ services:
       timeout: 3s
       retries: 20
   proxysql:
-    image: proxysql/proxysql:latest
+    image: proxysql/proxysql:3.0.7
     container_name: proxysql
     ports:
       - "6032:6032"
