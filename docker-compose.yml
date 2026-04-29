@@ -13,7 +13,7 @@ services:
       - ecdb_mysql_data:/var/lib/mysql
       - ./mysql/primary/my.cnf:/etc/mysql/conf.d/my.cnf
     networks:
-      - mysql-net
+      - app-net
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p1234"]
       interval: 5s
@@ -35,7 +35,7 @@ services:
       - replica1_mysql_data:/var/lib/mysql
       - ./mysql/replica/my1.cnf:/etc/mysql/conf.d/my.cnf
     networks:
-      - mysql-net
+      - app-net
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p1234"]
       interval: 5s
@@ -58,7 +58,7 @@ services:
       - replica2_mysql_data:/var/lib/mysql
       - ./mysql/replica/my2.cnf:/etc/mysql/conf.d/my.cnf
     networks:
-      - mysql-net
+      - app-net
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-p1234" ]
       interval: 5s
@@ -73,7 +73,7 @@ services:
       - "6401:6401"
       - "6402:6402"
     networks:
-      - mysql-net
+      - app-net
     depends_on:
       mysql-primary:
         condition: service_healthy
@@ -82,14 +82,81 @@ services:
       mysql-replica2:
         condition: service_healthy
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - app-net
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+    networks:
+      - app-net
+
+  mysqld-exporter-primary:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld-exporter-primary
+    command:
+      - "--mysqld.address=mysql-primary:3306"
+      - "--mysqld.username=exporter"
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: 1234
+    depends_on:
+      mysql-primary:
+        condition: service_healthy
+    networks:
+      - app-net
+
+  mysqld-exporter-replica1:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld-exporter-replica1
+    command:
+      - "--mysqld.address=mysql-replica1:3306"
+      - "--mysqld.username=exporter"
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: 1234
+    depends_on:
+      mysql-replica1:
+        condition: service_healthy
+    networks:
+      - app-net
+
+  mysqld-exporter-replica2:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld-exporter-replica2
+    command:
+      - "--mysqld.address=mysql-replica2:3306"
+      - "--mysqld.username=exporter"
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: 1234
+    depends_on:
+      mysql-replica2:
+        condition: service_healthy
+    networks:
+      - app-net
 
 volumes:
   ecdb_mysql_data:
     external: true
   replica1_mysql_data:
   replica2_mysql_data:
+  grafana-storage:
+  prometheus-data:
+
 networks:
-  mysql-net:
+  app-net:
     driver: bridge
 

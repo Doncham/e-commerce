@@ -66,6 +66,9 @@ dependencies {
 	testImplementation ("org.testcontainers:junit-jupiter")
 	testImplementation ("org.testcontainers:testcontainers")
 
+	implementation ("org.springframework.boot:spring-boot-starter-actuator")
+	implementation ("io.micrometer:micrometer-registry-prometheus")
+
 
 }
 
