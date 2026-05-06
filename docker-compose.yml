@@ -72,6 +72,8 @@ services:
       - "6033:6033"
       - "6401:6401"
       - "6402:6402"
+    volumes:
+      - proxysql-data:/var/lib/proxysql
     networks:
       - app-net
     depends_on:
@@ -155,6 +157,7 @@ volumes:
   replica2_mysql_data:
   grafana-storage:
   prometheus-data:
+  proxysql-data:
 
 networks:
   app-net:
