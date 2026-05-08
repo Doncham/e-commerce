@@ -150,6 +150,45 @@ services:
     networks:
       - app-net
 
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    platform: linux/amd64
+    container_name: orchestrator
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./orchestrator/orchestrator.conf.json:/etc/orchestrator.conf.json
+      - ./orchestrator/hooks:/etc/orchestrator/hooks
+    depends_on:
+      - mysql-primary
+      - mysql-replica1
+      - mysql-replica2
+      - proxysql
+    networks:
+      - app-net
+
+  orchestrator-meta:
+    image: mysql:8.0
+    container_name: orchestrator-meta
+    environment:
+      MYSQL_ROOT_PASSWORD: 1234
+      MYSQL_DATABASE: orchestrator
+      MYSQL_USER: orc_user
+      MYSQL_PASSWORD: 1234
+    ports:
+      - "3310:3306"
+    volumes:
+      - orchestrator-meta-data:/var/lib/mysql
+    networks:
+      - app-net
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p1234" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   ecdb_mysql_data:
     external: true
@@ -158,6 +197,7 @@ volumes:
   grafana-storage:
   prometheus-data:
   proxysql-data:
+  orchestrator-meta-data:
 
 networks:
   app-net:

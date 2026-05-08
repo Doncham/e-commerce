@@ -1,0 +1,32 @@
+{
+  "Debug": true,
+  "EnableSyslog": false,
+  "ListenAddress": ":3000",
+
+  "MySQLTopologyUser": "orc_client_user",
+  "MySQLTopologyPassword": "1234",
+
+  "MySQLOrchestratorHost": "orchestrator-meta",
+  "MySQLOrchestratorPort": 3306,
+  "MySQLOrchestratorDatabase": "orchestrator",
+  "MySQLOrchestratorUser": "orc_user",
+  "MySQLOrchestratorPassword": "1234",
+
+  "DefaultInstancePort": 3306,
+  "DiscoverByShowSlaveHosts": true,
+  "InstancePollSeconds": 5,
+
+  "HostnameResolveMethod": "none",
+  "DetectClusterAliasQuery": "SELECT 'local-mysql-cluster'",
+
+  "RecoverMasterClusterFilters": [
+    "local-mysql-cluster"
+  ],
+
+  "ApplyMySQLPromotionAfterMasterFailover": true,
+  "DetachLostSlavesAfterMasterFailover": true,
+
+  "PostMasterFailoverProcesses": [
+    "/etc/orchestrator/hooks/proxysql-failover.sh {failureCluster} {failedHost} {failedPort} {successorHost} {successorPort}"
+  ]
+}
