@@ -261,7 +261,24 @@ fi
 log "write probe ok: ${PROBE_RESULT}"
 
 # =========================================================
-# 9. 모든 검증 성공 후 디스크 저장
+# 9. spring에 있는 stale write connection 삭제
+# 이거 삭제 안하면 초반 요청 몇개는 500 반환
+# =========================================================
+SPRING_APP_HOST="${SPRING_APP_HOST:-host.docker.internal}"
+SPRING_APP_PORT="${SPRING_APP_PORT:-8080}"
+SPRING_INTERNAL_TOKEN="${SPRING_INTERNAL_TOKEN:-change-me-secret}"
+
+curl -fsS -X POST \
+  "http://${SPRING_APP_HOST}:${SPRING_APP_PORT}/internal/db-pool/evict/write" \
+  -H "X-Internal-Token: ${SPRING_INTERNAL_TOKEN}" || {
+    log "spring hikari write pool evict failed"
+    exit 6
+  }
+
+log "spring hikari write pool evict ok"
+
+# =========================================================
+# 10. 모든 검증 성공 후 디스크 저장
 # ProxySQL 재시작 후에도 변경된 라우팅 유지
 # =========================================================
 mysql_admin <<SQL
