@@ -1,26 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# =========================================================
+# Orchestrator가 넘겨주는 인자
+# 예:
+# $1 = local-mysql-cluster
+# $2 = mysql-primary
+# $3 = 3306
+# $4 = mysql-replica1
+# $5 = 3306
+# =========================================================
 FAILURE_CLUSTER="${1}"
 FAILED_HOST="${2}"
 FAILED_PORT="${3}"
 NEW_PRIMARY_HOST="${4}"
 NEW_PRIMARY_PORT="${5}"
 
+# =========================================================
+# ProxySQL 접속 정보
+# =========================================================
 PROXYSQL_HOST="${PROXYSQL_HOST:-proxysql}"
 PROXYSQL_ADMIN_PORT="${PROXYSQL_ADMIN_PORT:-6032}"
-PROXYSQL_ADMIN_USER="${PROXYSQL_ADMIN_USER:-admin}"
-PROXYSQL_ADMIN_PASSWORD="${PROXYSQL_ADMIN_PASSWORD:-admin}"
+PROXYSQL_ADMIN_USER="${PROXYSQL_ADMIN_USER:-orc_admin}"
+PROXYSQL_ADMIN_PASSWORD="${PROXYSQL_ADMIN_PASSWORD:-orc_admin_pass}"
 
+# =========================================================
+# 애플리케이션 DB 접속 정보
+# 6401 = write port
+# 6402 = read port
+# =========================================================
 APP_USER="${APP_USER:-appuser}"
 APP_PASSWORD="${APP_PASSWORD:-app1234}"
+APP_DATABASE="${APP_DATABASE:-ecdb}"
 
 WRITE_PROXY_PORT="${WRITE_PROXY_PORT:-6401}"
-READ_PROXY_PORT="${READ_PROXY_PORT:-6402}"
 
 WRITER_HG=10
 READER_HG=20
 
+# 현재 Docker Compose에 존재하는 MySQL 노드 목록
 ALL_MYSQL_HOSTS=("mysql-primary" "mysql-replica1" "mysql-replica2")
 HOST_IN_LIST="'mysql-primary','mysql-replica1','mysql-replica2'"
 
@@ -28,6 +46,7 @@ log() {
   echo "[$(date '+%F %T')] $*"
 }
 
+# ProxySQL Admin 포트로 SQL 실행
 mysql_admin() {
   mysql \
     -h"${PROXYSQL_HOST}" \
@@ -39,6 +58,7 @@ mysql_admin() {
     "$@"
 }
 
+# MySQL 인스턴스에 직접 접속해서 SQL 실행
 mysql_instance() {
   local host="$1"
   local port="$2"
@@ -55,17 +75,24 @@ mysql_instance() {
     "$@"
 }
 
+# =========================================================
+# 1. 중복 실행 방지
+# 같은 failover hook이 동시에 여러 번 실행되면 ProxySQL 설정이 꼬일 수 있음
+# =========================================================
 LOCK_FILE="/tmp/proxysql-failover.lock"
 exec 9>"${LOCK_FILE}"
 
 flock -n 9 || {
-  log "another failover hook is running"
+  log "another failover hook is already running"
   exit 1
 }
 
 log "failover start: cluster=${FAILURE_CLUSTER}, failed=${FAILED_HOST}:${FAILED_PORT}, new_primary=${NEW_PRIMARY_HOST}:${NEW_PRIMARY_PORT}"
 
-# 1. 새 primary가 진짜 writable인지 확인
+# =========================================================
+# 2. 새 primary가 진짜 쓰기 가능한지 확인
+# read_only=0이어야 writer로 사용할 수 있음
+# =========================================================
 NEW_PRIMARY_READ_ONLY=$(mysql_instance "${NEW_PRIMARY_HOST}" "${NEW_PRIMARY_PORT}" \
   -e "SELECT @@read_only;" 2>/dev/null || echo "ERROR")
 
@@ -76,7 +103,10 @@ fi
 
 log "new primary writable check ok: ${NEW_PRIMARY_HOST}"
 
-# 2. reader 후보 health check
+# =========================================================
+# 3. reader 후보 계산
+# 죽은 서버와 새 primary를 제외한 나머지를 reader 후보로 사용
+# =========================================================
 READERS=()
 
 for host in "${ALL_MYSQL_HOSTS[@]}"; do
@@ -95,11 +125,10 @@ for host in "${ALL_MYSQL_HOSTS[@]}"; do
   fi
 done
 
-if [[ ${#READERS[@]} -eq 0 ]]; then
-  log "warning: no healthy reader candidates. read traffic on HG20 may fail."
-fi
-
-# 3. 기존 MySQL 서버들을 먼저 OFFLINE_HARD 처리
+# =========================================================
+# 4. ProxySQL에서 기존 DB 서버들을 먼저 OFFLINE_HARD 처리
+# 기존 backend connection / stale routing 영향을 줄이기 위한 단계
+# =========================================================
 mysql_admin <<SQL
 UPDATE mysql_servers
 SET status = 'OFFLINE_HARD'
@@ -109,9 +138,13 @@ WHERE hostname IN (${HOST_IN_LIST})
 LOAD MYSQL SERVERS TO RUNTIME;
 SQL
 
-log "all known mysql servers marked OFFLINE_HARD in ProxySQL runtime"
+log "old ProxySQL mysql_servers marked OFFLINE_HARD"
 
-# 4. desired state 재구성
+# =========================================================
+# 5. ProxySQL mysql_servers를 원하는 최종 상태로 재구성
+# HG10 = 새 primary
+# HG20 = 남은 replica
+# =========================================================
 mysql_admin <<SQL
 DELETE FROM mysql_servers
 WHERE hostname IN (${HOST_IN_LIST})
@@ -132,37 +165,13 @@ mysql_admin <<SQL
 LOAD MYSQL SERVERS TO RUNTIME;
 SQL
 
-log "ProxySQL runtime mysql_servers loaded"
+log "ProxySQL mysql_servers loaded to runtime"
 
-# 5. query rule은 삭제하지 않고 검증만 함
-QUERY_RULE_COUNT=$(mysql_admin <<SQL
-SELECT COUNT(*)
-FROM runtime_mysql_query_rules
-WHERE active = 1
-  AND (
-    (proxy_port = ${WRITE_PROXY_PORT} AND destination_hostgroup = ${WRITER_HG})
-    OR
-    (proxy_port = ${READ_PROXY_PORT} AND destination_hostgroup = ${READER_HG})
-  );
-SQL
-)
-
-if [[ "${QUERY_RULE_COUNT}" != "2" ]]; then
-  log "ProxySQL query rule verification failed. expected=2, actual=${QUERY_RULE_COUNT}"
-
-  mysql_admin <<SQL
-SELECT rule_id, active, proxy_port, destination_hostgroup, apply
-FROM runtime_mysql_query_rules
-ORDER BY rule_id;
-SQL
-
-  exit 3
-fi
-
-log "ProxySQL query rule verification ok"
-
-# 6. writer runtime 검증
-WRITER_ONLINE_COUNT=$(mysql_admin <<SQL
+# =========================================================
+# 6. writer hostgroup 검증
+# HG10에 ONLINE writer가 새 primary 하나만 있어야 함
+# =========================================================
+WRITER_COUNT=$(mysql_admin <<SQL
 SELECT COUNT(*)
 FROM runtime_mysql_servers
 WHERE hostgroup_id = ${WRITER_HG}
@@ -180,7 +189,7 @@ WHERE hostgroup_id = ${WRITER_HG}
 SQL
 )
 
-if [[ "${WRITER_ONLINE_COUNT}" != "1" || "${WRONG_WRITER_COUNT}" != "0" ]]; then
+if [[ "${WRITER_COUNT}" != "1" || "${WRONG_WRITER_COUNT}" != "0" ]]; then
   log "ProxySQL writer verification failed"
 
   mysql_admin <<SQL
@@ -190,36 +199,20 @@ WHERE hostname IN (${HOST_IN_LIST})
 ORDER BY hostgroup_id, hostname;
 SQL
 
-  exit 4
+  exit 3
 fi
 
-log "ProxySQL writer runtime verification ok"
+log "ProxySQL writer verification ok"
 
-# 7. reader runtime 검증
-for reader in "${READERS[@]}"; do
-  READER_ONLINE_COUNT=$(mysql_admin <<SQL
-SELECT COUNT(*)
-FROM runtime_mysql_servers
-WHERE hostgroup_id = ${READER_HG}
-  AND hostname = '${reader}'
-  AND status = 'ONLINE';
-SQL
-)
-
-  if [[ "${READER_ONLINE_COUNT}" != "1" ]]; then
-    log "ProxySQL reader verification failed: ${reader}"
-    exit 5
-  fi
-done
-
-log "ProxySQL reader runtime verification ok"
-
-# 8. 기존 write frontend session 정리
+# =========================================================
+# 7. 기존 appuser write frontend session 정리
+# Spring/HikariCP가 failover 전 ProxySQL 세션을 재사용하는 문제를 줄임
+# =========================================================
 SESSION_IDS=$(mysql_admin <<SQL
 SELECT SessionID
 FROM stats_mysql_processlist
 WHERE user = '${APP_USER}'
-  AND l_srv_port = ${WRITE_PROXY_PORT};
+  AND hostgroup = ${WRITER_HG};
 SQL
 )
 
@@ -233,7 +226,11 @@ else
   log "no existing app write sessions to kill"
 fi
 
-# 9. 6401 write probe
+# =========================================================
+# 8. 실제 write port 6401로 INSERT 테스트
+# ProxySQL 설정이 아니라, 앱이 쓰는 경로가 실제로 writable한지 확인
+# failover_probe 테이블은 ecdb에 미리 만들어둬야 함
+# =========================================================
 PROBE_RESULT=$(mysql \
   -h"${PROXYSQL_HOST}" \
   -P"${WRITE_PROXY_PORT}" \
@@ -242,6 +239,7 @@ PROBE_RESULT=$(mysql \
   --connect-timeout=2 \
   --batch \
   --skip-column-names \
+  "${APP_DATABASE}" \
   -e "
     INSERT INTO failover_probe(id, memo)
     VALUES (1, 'orchestrator-failover')
@@ -250,12 +248,22 @@ PROBE_RESULT=$(mysql \
     SELECT @@hostname, @@read_only, CONNECTION_ID();
   " 2>&1) || {
     log "write probe failed: ${PROBE_RESULT}"
-    exit 6
+    exit 4
   }
+
+PROBE_READ_ONLY=$(echo "${PROBE_RESULT}" | tail -n 1 | awk '{print $2}')
+
+if [[ "${PROBE_READ_ONLY}" != "0" ]]; then
+  log "write probe reached read-only server: ${PROBE_RESULT}"
+  exit 5
+fi
 
 log "write probe ok: ${PROBE_RESULT}"
 
-# 10. 모든 검증 성공 후 디스크 저장
+# =========================================================
+# 9. 모든 검증 성공 후 디스크 저장
+# ProxySQL 재시작 후에도 변경된 라우팅 유지
+# =========================================================
 mysql_admin <<SQL
 SAVE MYSQL SERVERS TO DISK;
 SQL

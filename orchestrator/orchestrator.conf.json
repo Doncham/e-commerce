@@ -17,6 +17,7 @@
   "InstancePollSeconds": 5,
 
   "HostnameResolveMethod": "none",
+  "MySQLHostnameResolveMethod": "@@report_host",
   "DetectClusterAliasQuery": "SELECT 'local-mysql-cluster'",
 
   "RecoverMasterClusterFilters": [
@@ -27,6 +28,6 @@
   "DetachLostSlavesAfterMasterFailover": true,
 
   "PostMasterFailoverProcesses": [
-    "/etc/orchestrator/hooks/proxysql-failover.sh {failureCluster} {failedHost} {failedPort} {successorHost} {successorPort}"
+    "/bin/bash /etc/orchestrator/hooks/proxysql-failover.sh {failureCluster} {failedHost} {failedPort} {successorHost} {successorPort}"
   ]
 }
