@@ -172,4 +172,32 @@ public class Order extends BaseTimeEntity {
 			this.status = OrderStatus.PARTIAL_CANCELED;
 		}
 	}
+
+	public void paymentPending() {
+		if (this.status != OrderStatus.CREATED) {
+			throw new IllegalStateException("CREATED 상태 주문만 결제 시작 가능");
+		}
+		this.status = OrderStatus.PAYMENT_PENDING;
+	}
+
+	public void paymentComplete() {
+		if (this.status != OrderStatus.PAYMENT_PENDING) {
+			throw new IllegalStateException("PAYMENT_PENDING 상태 주문만 PG 요청 가능");
+		}
+		this.status = OrderStatus.PAYMENT_COMPLETE;
+	}
+
+	public boolean isPaymentPending() {
+		return this.status == OrderStatus.PAYMENT_PENDING;
+	}
+
+	public boolean isPaymentComplete() {
+		return this.status == OrderStatus.PAYMENT_COMPLETE;
+	}
+
+	public boolean canStartPayment() {
+		return this.status == OrderStatus.CREATED;
+	}
+
+
 }

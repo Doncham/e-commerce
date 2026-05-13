@@ -33,4 +33,6 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 		order by op.id asc
 """)
 	Optional<Payment> findByIdForPaymentDetailResponse(Long paymentId);
+
+	Optional<Payment> findByOrderId(Long orderId);
 }

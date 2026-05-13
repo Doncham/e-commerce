@@ -20,12 +20,12 @@ public class PaymentQueryService {
 	private final OrderRepository orderRepository;
 
 	@Transactional(readOnly = true)
-	public PayResponse findPayResult(Long orderId, String idemKey) {
+	public PayResponse findPayResult(Long orderId) {
 		Order order = orderRepository.findById(orderId)
 			.orElseThrow(() -> new OrderNotFoundException(ErrorCode.NOT_FOUND_ORDER, orderId));
 
 		// idemKey로 결제 시도 레코드가 있다면 그게 반환
-		Payment payment = paymentRepository.findByOrderIdAndIdempotencyKey(orderId, idemKey)
+		Payment payment = paymentRepository.findByOrderId(orderId)
 			.orElse(null);
 
 		// 해피 케이스 빠르게 리턴
