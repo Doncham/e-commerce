@@ -1,4 +1,4 @@
-package kr.hhplus.be.server.application.product;
+package kr.hhplus.be.server.application.product.dto;
 
 import lombok.Getter;
 

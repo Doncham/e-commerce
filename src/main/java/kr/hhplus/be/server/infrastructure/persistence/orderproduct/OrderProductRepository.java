@@ -11,7 +11,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import jakarta.persistence.LockModeType;
-import kr.hhplus.be.server.application.product.ProductSoldQtyDTO;
+import kr.hhplus.be.server.application.product.dto.ProductSoldQtyDTO;
+import kr.hhplus.be.server.application.product.batch.DailySalesAggregateRow;
 import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.orderproduct.OrderProductStatus;
@@ -24,7 +25,7 @@ public interface OrderProductRepository extends JpaRepository<OrderProduct, Long
 	// 매개변수로 from, to를 받아서 해당 기간에 주문된 내역으로만 평가
 	// OrderStatus가 PAID인 주문만 내역으로 평가
 	@Query("""
-  		select new kr.hhplus.be.server.application.product.ProductSoldQtyDTO(op.productId, COUNT(op.productId)) 
+  		select new kr.hhplus.be.server.application.product.dto.ProductSoldQtyDTO(op.productId, COUNT(op.productId)) 
 		from OrderProduct as op
 		join op.order o
 		join Product p on p.id = op.productId
@@ -41,6 +42,25 @@ public interface OrderProductRepository extends JpaRepository<OrderProduct, Long
 		@Param("to") LocalDateTime to,
 		@Param("status") OrderStatus status,
 		Pageable pageRequest
+	);
+
+	@Query(value = """
+ 		select 
+ 			op.product_id as productId, 
+ 			COUNT(op.product_id) as salesCount
+ 		from order_product op
+ 		join orders o on op.order_id = o.id
+ 		join payment p on o.id = p.order_id
+ 		where p.paid_at >= :from 
+ 			and p.paid_at < :to
+		group by op.product_id
+		order by salesCount desc, op.product_id asc
+	""", nativeQuery = true
+	)
+	// payment에 인덱스 걸어줘야겠는데?
+	List<DailySalesAggregateRow> rebuildDailyPopularSales(
+		@Param("from") LocalDateTime from,
+		@Param("to") LocalDateTime to
 	);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)

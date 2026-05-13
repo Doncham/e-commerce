@@ -33,8 +33,11 @@ import lombok.NoArgsConstructor;
 		@UniqueConstraint(
 			name = "ux_payment_pg_transaction_id",
 			columnNames = "pg_transaction_id"
+		),
+		@UniqueConstraint(
+			name = "uk_payment_paid_at",
+			columnNames = "paid_at"
 		)
-
 	}
 )
 public class Payment extends BaseTimeEntity {

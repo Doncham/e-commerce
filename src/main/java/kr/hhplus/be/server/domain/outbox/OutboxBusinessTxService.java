@@ -1,5 +1,9 @@
 package kr.hhplus.be.server.domain.outbox;
 
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.ZoneId;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -7,19 +11,23 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import kr.hhplus.be.server.application.point.PointService;
-import kr.hhplus.be.server.application.product.PopularProductIncrementPayload;
-import kr.hhplus.be.server.application.product.PopularRankPort;
+import kr.hhplus.be.server.application.product.dto.PopularProductIncrementPayload;
+import kr.hhplus.be.server.infrastructure.persistence.dailyproductsales.DailyProductSalesRepository;
 import kr.hhplus.be.server.infrastructure.persistence.outbox.OutboxEventRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OutboxBusinessTxService {
 	private final OutboxEventRepository outboxEventRepo;
 	private final PointService pointService;
 	private final ObjectMapper objectMapper;
+	private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+	private final Clock clock;
 
-	private final PopularRankPort popularRankPort;
+	private final DailyProductSalesRepository dailyProductSalesRepo;
 
 	@Transactional
 	public void handleAndMarkProcessedTx(Long eventId) throws JsonProcessingException {
@@ -39,12 +47,20 @@ public class OutboxBusinessTxService {
 
 			PopularProductIncrementPayload payload = objectMapper.readValue(event.getPayload(),
 				PopularProductIncrementPayload.class);
+			LocalDate closedDate = LocalDate.now(clock.withZone(KST));
+			LocalDate salesDate = payload.getSalesDate();
+			// 어제 이벤트면 처리 x
+			if(closedDate.isAfter(salesDate)) {
+				event.markProcessed();
+				log.info("skip old popular increment event. salesDate={}, eventId={}", salesDate, eventId);
+				return;
+			}
 
-			// 이 작업 후 장애 발생 시 redis 증분이 여러번 집계될 수 있다.
-			// 00:00시에 동작하는 배치를 통해 최종적인 정합성을 맞출 계획.
+			// 리팩토링
+			// dailyProductSales upsert하기
 			for (PopularProductIncrementPayload.Item item : payload.getItems()) {
-				popularRankPort.increment7d(item.getProductId(), 1);
-				popularRankPort.increment30d(item.getProductId(), 1);
+				Long productId = item.getProductId();
+				dailyProductSalesRepo.increasePaidCount(salesDate, productId);
 			}
 		}
 

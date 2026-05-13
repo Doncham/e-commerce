@@ -30,7 +30,7 @@
 ### 2.1 집계 쿼리(JPQL)
 ```java
 @Query("""
-    select new kr.hhplus.be.server.application.product.ProductSoldQtyDTO(op.productId, SUM(op.qty))
+    select new kr.hhplus.be.server.application.product.dto.ProductSoldQtyDTO(op.productId, SUM(op.qty))
     from OrderProduct as op
     join op.order o
     join Product p on p.id = op.productId

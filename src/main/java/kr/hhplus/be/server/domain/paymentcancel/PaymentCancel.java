@@ -28,7 +28,7 @@ import lombok.NoArgsConstructor;
 	),
 		@UniqueConstraint(
 			name = "ux_payment_cancel_pg_tx_id",
-			columnNames = "pg_cancel_transaction_id")
+			columnNames = "pg_cancellation_id")
 	}
 )
 public class PaymentCancel {
