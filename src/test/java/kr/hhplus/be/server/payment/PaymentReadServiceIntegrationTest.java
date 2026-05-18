@@ -1,6 +1,5 @@
 package kr.hhplus.be.server.payment;
 
-import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -30,7 +29,6 @@ import kr.hhplus.be.server.domain.payment.PaymentStatus;
 import kr.hhplus.be.server.domain.payment.dto.PaymentCancelJob;
 import kr.hhplus.be.server.domain.payment.dto.PaymentDetailItemResponse;
 import kr.hhplus.be.server.domain.payment.dto.PaymentDetailResponse;
-import kr.hhplus.be.server.domain.paymentcancel.PaymentCancel;
 import kr.hhplus.be.server.domain.user.User;
 import kr.hhplus.be.server.infrastructure.persistence.address.AddressRepository;
 import kr.hhplus.be.server.infrastructure.persistence.order.OrderRepository;
@@ -82,13 +80,13 @@ public class PaymentReadServiceIntegrationTest {
 		persist.save(orderProductRepo, op2);
 
 
-		Payment payment = persist.saveAndFlush(paymentRepo, TestFixture.successPayment(order, 25000L));
-		PaymentAttempt paymentAttempt = paymentService.preparePayment(order.getId(), "idem-123");
+		//Payment payment = persist.saveAndFlush(paymentRepo, TestFixture.successPayment(order, 25000L));
+		PaymentAttempt paymentAttempt = paymentService.preparePayment(order.getId());
 		paymentService.completePayment(paymentAttempt.getPaymentId(), PaymentGatewayResponse.of("pg-tx-id",
-			PaymentGatewayStatus.SUCCESS, payment.getAmount(), null, null));
+			PaymentGatewayStatus.SUCCESS, paymentAttempt.getAmount(), null, null));
 
 		PaymentCancelRequest request = PaymentCancelRequest.builder()
-			.paymentId(payment.getId())
+			.paymentId(paymentAttempt.getPaymentId())
 			.idemKey("cancel-idem-key")
 			.reason("단순 변심")
 			.orderProductIds(List.of(op1.getId()))
@@ -100,14 +98,14 @@ public class PaymentReadServiceIntegrationTest {
 		paymentCancelStatusService.markProcessing(paymentCancelId);
 		paymentCancelStatusService.markPgCanceledCompleted(paymentCancelId, "pg-cancel-123", LocalDateTime.now());
 		paymentService.completeCancelPayment(paymentCancelId);
-		Long paymentId = payment.getId();
+		Long paymentId = paymentAttempt.getPaymentId();
 
 		// when
 		PaymentDetailResponse paymentDetail = paymentService.getPaymentDetail(paymentId);
 		List<PaymentDetailItemResponse> orderProducts = paymentDetail.getOrderProductDetails();
 
 		// then
-		Assertions.assertEquals(payment.getId(), paymentDetail.getPaymentId());
+		Assertions.assertEquals(paymentAttempt.getPaymentId(), paymentDetail.getPaymentId());
 		Assertions.assertEquals(PaymentStatus.PARTIAL_CANCELED, paymentDetail.getPaymentStatus());
 		Assertions.assertEquals(order.getId(), paymentDetail.getOrderId());
 		Assertions.assertEquals(OrderStatus.PARTIAL_CANCELED, paymentDetail.getOrderStatus());
