@@ -19,13 +19,13 @@ import lombok.RequiredArgsConstructor;
 *
 */
 public class FirstComeCouponService {
-	private static final long SHIFT = 1_000L;
+	private static final long SEQUENCE_BUCKET_SIZE = 1_000L;
 	private static final Duration APPLY_TTL = Duration.ofMinutes(1);
 	private static final Duration REQ_TTL = Duration.ofDays(2);
 
 	private final StringRedisTemplate redis;
 	private final Clock clock;
-	public ApplyResponseDto apply(long couponId, long userId) {
+	public CouponApplyResponse apply(long couponId, long userId) {
 		if (couponId <= 0 || userId <= 0) throw new IllegalArgumentException("couponId/userId must be > 0");
 
 		final String appliedKey = appliedKey(couponId);
@@ -41,7 +41,7 @@ public class FirstComeCouponService {
 
 		if (added == 0L) {
 			// 이미 신청한 유저
-			return ApplyResponseDto.fail(ApplyResponseDto.ApplyCode.DUPLICATE,"이미 신청했습니다.");
+			return CouponApplyResponse.fail(CouponApplyResponse.CouponApplyStatus.DUPLICATE,"이미 신청했습니다.");
 		}
 		// 이벤트 후 자동 청소
 		redis.expire(appliedKey, APPLY_TTL);
@@ -58,17 +58,28 @@ public class FirstComeCouponService {
 		}
 		redis.expire(seqKey, REQ_TTL);
 
-		long packed = nowMs * SHIFT + (seq % SHIFT);
+		long packed = nowMs * SEQUENCE_BUCKET_SIZE + (seq % SEQUENCE_BUCKET_SIZE);
 		double score = (double) packed;
-		Boolean ok = redis.opsForZSet().add(reqKey, String.valueOf(userId), score);
-		if (ok == null || !ok) {
+		Boolean enqueued = redis.opsForZSet().addIfAbsent(reqKey, String.valueOf(userId), score);
+
+		if (enqueued == null) {
 			// 큐잉 실패 시 보상
 			redis.opsForSet().remove(appliedKey, String.valueOf(userId));
+			// 이거 예외를 던져야하는건가?
 			throw new IllegalStateException("Failed to enqueue request into ZSET");
 		}
+
+		// 이런 방어코드가 필요한지 모르겠음.
+		if (!enqueued) {
+			return CouponApplyResponse.fail(
+				CouponApplyResponse.CouponApplyStatus.DUPLICATE,
+				"이미 신청했습니다."
+			);
+		}
+
 		redis.expire(reqKey, REQ_TTL);
 
-		return ApplyResponseDto.ok(ApplyResponseDto.ApplyCode.ACCEPTED,"신청 접수");
+		return CouponApplyResponse.ok(CouponApplyResponse.CouponApplyStatus.ACCEPTED,"신청 접수");
 
 	}
 
