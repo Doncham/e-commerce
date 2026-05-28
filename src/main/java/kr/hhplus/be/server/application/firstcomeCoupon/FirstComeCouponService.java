@@ -1,97 +1,78 @@
 package kr.hhplus.be.server.application.firstcomeCoupon;
 
 import java.time.Clock;
-import java.time.Duration;
+import java.util.List;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-/*
-*
-* Redis keys (couponId 기준):
-* - coupon:{id}:req        (ZSET)  : 선착순 대기열 (member=userId, score=timestamp+seq)
-* - coupon:{id}:applied    (SET)   : 신청 중복 방지(1인 1회 신청)
-* - coupon:{id}:seq        (STRING): 동일 ms tie-break용 시퀀스
-*
-*/
 public class FirstComeCouponService {
-	private static final long SEQUENCE_BUCKET_SIZE = 1_000L;
-	private static final Duration APPLY_TTL = Duration.ofMinutes(1);
-	private static final Duration REQ_TTL = Duration.ofDays(2);
+	private static final long ACCEPTED = 1L;
+	private static final long DUPLICATE = 2L;
+	private static final long SOLD_OUT = 3L;
+	private static final long QUANTITY_NOT_INITIALIZED = 4L;
+
 
 	private final StringRedisTemplate redis;
+	private final RedisScript<Long> couponApplyScript;
 	private final Clock clock;
 	public CouponApplyResponse apply(long couponId, long userId) {
 		if (couponId <= 0 || userId <= 0) throw new IllegalArgumentException("couponId/userId must be > 0");
 
-		final String appliedKey = appliedKey(couponId);
-		final String reqKey = reqKey(couponId);
-		final String seqKey = seqKey(couponId);
+		String reqKey = reqKey(couponId);
+		String quantityKey = quantityKey(couponId);
 
+		// redis Zset에서 중복 신청 체크 + 수량 체크 + ZADD를 Lua로 감싸기
+		Long result = redis.execute(
+			couponApplyScript,
+			List.of(reqKey, quantityKey),
+			String.valueOf(userId),
+			String.valueOf(clock.instant().getEpochSecond())
+		);
 
-		// 1) 신청 중복 방지
-		// 처음 신청 시 1, 이미 신청했으면 0
-		Long added = redis.opsForSet().add(appliedKey, String.valueOf(userId));
-		// redis 장애 시
-		if(added == null) throw new IllegalStateException("Redis SET add returned null");
-
-		if (added == 0L) {
-			// 이미 신청한 유저
-			return CouponApplyResponse.fail(CouponApplyResponse.CouponApplyStatus.DUPLICATE,"이미 신청했습니다.");
-		}
-		// 이벤트 후 자동 청소
-		redis.expire(appliedKey, APPLY_TTL);
-
-		// 2) 선착순 큐잉 (ZSET)
-		long nowMs = clock.millis();
-
-		// 전역 seq 증가(원자적). 타이브레이커 역할
-		Long seq = redis.opsForValue().increment(seqKey);
-		if (seq == null) {
-			// seq를 못 만들었으면 신청 자체를 실패 처리(보상)
-			redis.opsForSet().remove(appliedKey, String.valueOf(userId));
-			throw new IllegalStateException("Redis INCR returned null");
-		}
-		redis.expire(seqKey, REQ_TTL);
-
-		long packed = nowMs * SEQUENCE_BUCKET_SIZE + (seq % SEQUENCE_BUCKET_SIZE);
-		double score = (double) packed;
-		Boolean enqueued = redis.opsForZSet().addIfAbsent(reqKey, String.valueOf(userId), score);
-
-		if (enqueued == null) {
-			// 큐잉 실패 시 보상
-			redis.opsForSet().remove(appliedKey, String.valueOf(userId));
-			// 이거 예외를 던져야하는건가?
-			throw new IllegalStateException("Failed to enqueue request into ZSET");
+		if (result == null) {
+			throw new IllegalStateException("Redis script returned null");
 		}
 
-		// 이런 방어코드가 필요한지 모르겠음.
-		if (!enqueued) {
+		if (result == ACCEPTED) {
+			return CouponApplyResponse.ok(
+				CouponApplyResponse.CouponApplyStatus.ACCEPTED,
+				"신청 접수"
+			);
+		}
+
+		if (result == DUPLICATE) {
+			// @Async로 처리(전용 스레드 풀을 만들어야할듯)
 			return CouponApplyResponse.fail(
 				CouponApplyResponse.CouponApplyStatus.DUPLICATE,
 				"이미 신청했습니다."
 			);
 		}
 
-		redis.expire(reqKey, REQ_TTL);
+		if (result == SOLD_OUT) {
+			return CouponApplyResponse.fail(
+				CouponApplyResponse.CouponApplyStatus.SOLD_OUT,
+				"쿠폰이 모두 소진되었습니다."
+			);
+		}
 
-		return CouponApplyResponse.ok(CouponApplyResponse.CouponApplyStatus.ACCEPTED,"신청 접수");
+		if (result == QUANTITY_NOT_INITIALIZED) {
+			throw new IllegalStateException("Coupon quantity is not initialized. couponId=" + couponId);
+		}
 
+		throw new IllegalStateException("Unknown script result: " + result);
 	}
 
 	private String reqKey(long couponId) {
 		return "coupon:" + couponId + ":req";
 	}
 
-	private String appliedKey(long couponId) {
-		return "coupon:" + couponId + ":applied";
-	}
-
-	private String seqKey(long couponId) {
-		return "coupon:" + couponId + ":seq";
+	private String quantityKey(long couponId) {
+		return "coupon:" + couponId + ":quantity";
 	}
 }
