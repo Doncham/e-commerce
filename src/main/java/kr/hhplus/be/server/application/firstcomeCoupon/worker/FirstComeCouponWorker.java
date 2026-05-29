@@ -1,15 +1,21 @@
 package kr.hhplus.be.server.application.firstcomeCoupon.worker;
 
-import java.time.Duration;
+import java.time.Clock;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import kr.hhplus.be.server.application.firstcomeCoupon.ActiveCouponRegistry;
+import kr.hhplus.be.server.domain.usercoupon.UserCoupon;
 import kr.hhplus.be.server.infrastructure.persistence.userCoupon.UserCouponRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,160 +24,118 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @RequiredArgsConstructor
 public class FirstComeCouponWorker {
-	private static final Duration REQ_TTL = Duration.ofDays(2);
-	// 한 번에 pop할 최대 개수 (DB/Redis 상황에 따라 50~200 설정)
-	private static final int POP_BATCH_SIZE = 50;
-
-	private final FirstComeCouponIssuer firstComeCouponIssuer;
-	private final StringRedisTemplate redis;
 	private final UserCouponRepository userCouponRepository;
-	private final ActiveCouponRegistry activeCouponRegistry;
+	private final StringRedisTemplate redis;
+	private final Clock clock;
+	private final RedissonClient redisson;
 
+	private static final Integer POP_SIZE = 10;
+	private static final Integer MOVE_SIZE = 100;
 
-	/**
-	 * 예시: 200ms마다 돌아서 빨리 비우는 형태(이벤트 트래픽에 따라 조절 가능)
-	 */
-	@Scheduled(fixedDelay = 200)
-	public void run() {
-		List<Long> couponIds = activeCouponRegistry.getActiveCouponIds();
-		for (Long couponId : couponIds) {
-			processCoupon(couponId, 200);
-		}
-	}
+	@Scheduled(fixedDelay = 1000)
+	public void issueCoupon() {
+		// event 진행 중인 couponId들을 가져오기
+		Set<String> couponIdSet = redis.opsForSet().members(eventCouponKey());
 
-	public void processCoupon(long couponId, int maxBatch) {
-		if(couponId <= 0 || maxBatch <=0 ) return;
-		String reqKey = reqKey(couponId);
-		String issuedKey = issuedKey(couponId);
-		String remainKey = remainKey(couponId);
+		if(couponIdSet == null || couponIdSet.isEmpty()) return;
 
-		int attempts = 0;
-		while (attempts < maxBatch) {
-			int want = Math.min(POP_BATCH_SIZE, maxBatch - attempts);
+		for (String couponId : couponIdSet) {
+			List<String> userIds =  popUsers(couponId, POP_SIZE);
 
-			// 1) 수량을 배치로 선점 (want 만큼)
-			int reserved = reserveRemain(remainKey, want);
-			if (reserved <= 0) {
-				// 품절 또는 remainKey 이상
-				return;
-			}
-
-			// 2) ZSET에서 reserved 만큼 원자 pop
-			Set<ZSetOperations.TypedTuple<String>> popped = redis.opsForZSet().popMin(reqKey, reserved);
-			if (popped == null || popped.isEmpty()) {
-				// 큐가 비었는데 수량을 선점했으니 복구하고 종료
-				releaseRemain(remainKey, reserved);
-				return;
-			}
-
-			// pop된 개수가 reserved보다 적을 수 있음(경합/큐 부족)
-			// ex) 50개 처리하는데 이벤트가 인기 없어서 30명만 신청한 경우 50-30만큼의 수량을 복구해줘야함.
-			int actual = popped.size();
-			if (actual < reserved) {
-				releaseRemain(remainKey, reserved - actual);
-			}
-
-			// 3) pop된 요청 처리 (각 요청마다 DB 결과에 따라 remain 복구 가능)
-			for (ZSetOperations.TypedTuple<String> t : popped) {
-				String userIdStr = (t == null ? null : t.getValue());
-				if (userIdStr == null || userIdStr.isBlank()) {
-					// 이상 데이터: 발급 못 했으니 수량 복구
-					releaseRemain(remainKey, 1);
-					continue;
-				}
-
-				long userId;
+			// 락 잡고 옮기기
+			if(userIds.isEmpty()) {
+				RLock lock = redisson.getLock("lock:coupon:" + couponId);
+				boolean locked = false;
 				try {
-					userId = Long.parseLong(userIdStr);
-				} catch (Exception e) {
-					releaseRemain(remainKey, 1);
+					// waitTime = 0, leaseTime = 30 -> 워커가 죽어도 30초 뒤에는 락을 해제함.
+					locked = lock.tryLock(0, 30, TimeUnit.SECONDS);
+					if (!locked) {
+						// 다른 이벤트 쿠폰 처리
+						continue;
+					}
+					// zset:req -> zset:pop으로 100개 복사하기
+					copyRequests(couponId);
+					// 쿠폰 발급을 실행하지 않고 copy만 수행. 왜냐면 다른 이벤트 쿠폰도 빠르게 복사가 필요함.
 					continue;
-				}
-
-				// 3-1) 워커 단계 중복 발급 방지
-				Long issuedAdded = redis.opsForSet().add(issuedKey, userIdStr);
-				// 키가 처음 만들어지는 순간에만 expire 명령어 날리기
-				if (issuedAdded == 1L) {
-					redis.expire(issuedKey, REQ_TTL);
-				}
-				if (issuedAdded == null) {
-					// Redis 이상: 안정적으로 복구 후 종료
-					releaseRemain(remainKey, 1);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					log.warn("Interrupted while acquiring lock. couponId={}", couponId, e);
 					continue;
+				} finally {
+					if (locked && lock.isHeldByCurrentThread()) {
+						lock.unlock();
+					}
 				}
-				if (issuedAdded == 0L) {
-					// 이미 처리됨: 수량 복구하고 다음
-					releaseRemain(remainKey, 1);
-					continue;
-				}
-
-				// 3-2) DB insert (최종 확정)
-				IssueResult result = firstComeCouponIssuer.issueToDb(couponId, userId);
-				Double score = t.getScore();
-
-				if (result == IssueResult.SUCCESS) {
-					attempts++;
-					if(attempts >= maxBatch) break;
-					continue;
-				}
-
-				// 실패면 보상작업: issued 제거 + remain 복구
-				redis.opsForSet().remove(issuedKey, userIdStr);
-				releaseRemain(remainKey, 1);
-
-				if(result == IssueResult.PERMANENT_FAIL) continue;
-
-				// 재시도 가능 시 requeue
-				double requeueScore = score != null ? score : (double)System.currentTimeMillis();
-				// backoff: 너무 빨리 다시 잡히지 않게 뒤로 넣기(5초)
-				requeueScore += 5_000.0;
-
-				redis.opsForZSet().add(reqKey, userIdStr, requeueScore);
-				attempts++;
-
 			}
 
+			// 쿠폰 발급 처리하기
+			for(String userId : userIds) {
+				// 여기서 unique 예외 발생 시 전체 loop가 망가진다.
+				try{
+					userCouponRepository.save(
+						UserCoupon.createUserCoupon(
+							Long.parseLong(userId),
+							Long.parseLong(couponId)
+						)
+					);
+					redis.opsForZSet().add(reqKey(couponId), userId, 1);
+				} catch (DataIntegrityViolationException e) {
+					// 중복 예외가 만약에 터졌다면 score 변경을 안했을 때 계속 재시도 대상이 될 수 있다.
+					log.info("Already issued coupon. couponId={}, userId={}", couponId, userId);
+					redis.opsForZSet().add(reqKey(couponId), userId, 1);
+				} catch (Exception e) {
+					log.warn("Failed to issue coupon. couponId={}, userId={}", couponId, userId, e);
+				}
+
+			}
 		}
+
 	}
 
-	private int reserveRemain(String remainKey, int want) {
-		// increment(key, delta)로 INCRBY 동작 (음수면 사실상 DECRBY)
-		Long remainAfter = redis.opsForValue().increment(remainKey, -want);
-		if (remainAfter == null) {
-			log.warn("remain reserve returned null. remainKey={}", remainKey);
-			return 0;
-		}
+	private void copyRequests(String couponId) {
+		Set<ZSetOperations.TypedTuple<String>> couponRequests = redis.opsForZSet().rangeByScoreWithScores(
+			reqKey(couponId),
+			2,
+			clock.instant().getEpochSecond() - 10,
+			0,
+			MOVE_SIZE
+		);
 
-		if (remainAfter >= 0) {
-			return want;
+		if (couponRequests == null || couponRequests.isEmpty()) {
+			return;
 		}
+		// 방어 코드, map은 왜 하는거지? couponRequests랑 뭐가 달라지나?
+		Set<ZSetOperations.TypedTuple<String>> popTuples = couponRequests.stream()
+			.filter(tuple -> tuple.getValue() != null && tuple.getScore() != null)
+			.collect(Collectors.toSet());
 
-		// oversold: remainAfter가 -k면 k개 초과로 선점한 것 -> k개 복구
-		int over = (int)(-remainAfter);
-		if (over > 0) {
-			redis.opsForValue().increment(remainKey, over);
-		}
-		int reserved = want - over;
-		return Math.max(reserved, 0);
+		redis.opsForZSet().add(popKey(couponId), popTuples);
 	}
 
-	private void releaseRemain(String remainKey, int count) {
-		if (count <= 0) return;
-		redis.opsForValue().increment(remainKey, count);
+	private List<String> popUsers(String couponId, Integer popSize) {
+		// score >= 2 && score < 현재 초 - 10에 해당하는 요청 가져오기
+		Set<ZSetOperations.TypedTuple<String>> tuples =
+			redis.opsForZSet().popMin(popKey(couponId), popSize);
+		if (tuples == null || tuples.isEmpty()) {
+			return List.of();
+		}
+
+		return tuples.stream()
+			.map(ZSetOperations.TypedTuple::getValue)
+			// null 체크를 꼭 해줘야 하나?
+			.filter(Objects::nonNull)
+			.toList();
 	}
 
+	private String eventCouponKey() {
+		return "coupon:event:keys";
+	}
 
+	private String popKey(String couponId) {
+		return "coupon:" + couponId + ":pop";
+	}
 
-
-	private String reqKey(long couponId) {
+	private String reqKey(String couponId) {
 		return "coupon:" + couponId + ":req";
-	}
-
-	private String issuedKey(long couponId) {
-		return "coupon:" + couponId + ":issued";
-	}
-
-	private String remainKey(long couponId) {
-		return "coupon:" + couponId + ":remain";
 	}
 }

@@ -21,7 +21,9 @@ public class FirstComeCouponService {
 	private final StringRedisTemplate redis;
 	private final RedisScript<Long> couponApplyScript;
 	private final Clock clock;
-	public CouponApplyResponse apply(long couponId, long userId) {
+	private final CouponIssueAsyncService couponIssueAsyncService;
+
+	public CouponApplyResponse apply(long userId, long couponId) {
 		if (couponId <= 0 || userId <= 0) throw new IllegalArgumentException("couponId/userId must be > 0");
 
 		String reqKey = reqKey(couponId);
@@ -40,6 +42,8 @@ public class FirstComeCouponService {
 		}
 
 		if (result == ACCEPTED) {
+			couponIssueAsyncService.issueAsync(userId, couponId);
+
 			return CouponApplyResponse.ok(
 				CouponApplyResponse.CouponApplyStatus.ACCEPTED,
 				"신청 접수"
