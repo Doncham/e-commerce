@@ -42,6 +42,7 @@ public class FirstComeCouponService {
 		}
 
 		if (result == ACCEPTED) {
+			// @Async로 처리(전용 스레드 풀을 만들어야할듯)
 			couponIssueAsyncService.issueAsync(userId, couponId);
 
 			return CouponApplyResponse.ok(
@@ -51,7 +52,6 @@ public class FirstComeCouponService {
 		}
 
 		if (result == DUPLICATE) {
-			// @Async로 처리(전용 스레드 풀을 만들어야할듯)
 			return CouponApplyResponse.fail(
 				CouponApplyResponse.CouponApplyStatus.DUPLICATE,
 				"이미 신청했습니다."

@@ -40,7 +40,7 @@ public class FirstComeCouponWorker {
 		if(couponIdSet == null || couponIdSet.isEmpty()) return;
 
 		for (String couponId : couponIdSet) {
-			List<String> userIds =  popUsers(couponId, POP_SIZE);
+			List<String> userIds =  popUsers(couponId);
 
 			// 락 잡고 옮기기
 			if(userIds.isEmpty()) {
@@ -50,7 +50,7 @@ public class FirstComeCouponWorker {
 					// waitTime = 0, leaseTime = 30 -> 워커가 죽어도 30초 뒤에는 락을 해제함.
 					locked = lock.tryLock(0, 30, TimeUnit.SECONDS);
 					if (!locked) {
-						// 다른 이벤트 쿠폰 처리
+						// 다른 이벤트 쿠폰 처리, continue를 하더라도 finally는 실행되는건가?
 						continue;
 					}
 					// zset:req -> zset:pop으로 100개 복사하기
@@ -60,7 +60,7 @@ public class FirstComeCouponWorker {
 				} catch (InterruptedException e) {
 					Thread.currentThread().interrupt();
 					log.warn("Interrupted while acquiring lock. couponId={}", couponId, e);
-					continue;
+					return;
 				} finally {
 					if (locked && lock.isHeldByCurrentThread()) {
 						lock.unlock();
@@ -104,7 +104,7 @@ public class FirstComeCouponWorker {
 		if (couponRequests == null || couponRequests.isEmpty()) {
 			return;
 		}
-		// 방어 코드, map은 왜 하는거지? couponRequests랑 뭐가 달라지나?
+		// 방어 코드
 		Set<ZSetOperations.TypedTuple<String>> popTuples = couponRequests.stream()
 			.filter(tuple -> tuple.getValue() != null && tuple.getScore() != null)
 			.collect(Collectors.toSet());
@@ -112,10 +112,10 @@ public class FirstComeCouponWorker {
 		redis.opsForZSet().add(popKey(couponId), popTuples);
 	}
 
-	private List<String> popUsers(String couponId, Integer popSize) {
+	private List<String> popUsers(String couponId) {
 		// score >= 2 && score < 현재 초 - 10에 해당하는 요청 가져오기
 		Set<ZSetOperations.TypedTuple<String>> tuples =
-			redis.opsForZSet().popMin(popKey(couponId), popSize);
+			redis.opsForZSet().popMin(popKey(couponId), POP_SIZE);
 		if (tuples == null || tuples.isEmpty()) {
 			return List.of();
 		}

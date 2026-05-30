@@ -1,122 +1,195 @@
 package kr.hhplus.be.server.application.firstcomeCoupon;
 
 import static org.assertj.core.api.AssertionsForClassTypes.*;
-import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.BDDMockito.*;
 
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.List;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
-import org.springframework.data.redis.core.SetOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.ValueOperations;
-import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 @ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
 class FirstComeCouponServiceTest {
-	@Mock
-	StringRedisTemplate redis;
-	@Mock
-	SetOperations<String, String> setOps;
-	@Mock
-	ZSetOperations<String, String> zsetOps;
-	@Mock
-	ValueOperations<String, String> valueOps;
 
-	private Clock fixedClock;
+	private static final long ACCEPTED = 1L;
+	private static final long DUPLICATE = 2L;
+	private static final long SOLD_OUT = 3L;
+	private static final long QUANTITY_NOT_INITIALIZED = 4L;
+
+	@Mock
+	private StringRedisTemplate redis;
+
+	@Mock
+	private RedisScript<Long> couponApplyScript;
+
+	@Mock
+	private CouponIssueAsyncService couponIssueAsyncService;
+
 	private FirstComeCouponService service;
+
+	private final Clock fixedClock = Clock.fixed(
+		Instant.parse("2026-05-30T00:00:00Z"),
+		ZoneId.of("Asia/Seoul")
+	);
 
 	@BeforeEach
 	void setUp() {
-		fixedClock = Clock.fixed(Instant.ofEpochMilli(1_700_000_000_123L), ZoneId.of("Asia/Seoul"));
-		service = new FirstComeCouponService(redis, fixedClock);
-
-		given(redis.opsForSet()).willReturn(setOps);
-		given(redis.opsForZSet()).willReturn(zsetOps);
-		given(redis.opsForValue()).willReturn(valueOps);
-
-		// TTL 설정은 반환값에 크게 의존하지 않으니 기본 true로
-		given(redis.expire(anyString(), any())).willReturn(true);
+		service = new FirstComeCouponService(
+			redis,
+			couponApplyScript,
+			fixedClock,
+			couponIssueAsyncService
+		);
 	}
 
 	@Test
-	void apply_success_returnsAccepted_andEnqueuesToZset() {
+	void 신청_성공이면_ACCEPTED를_반환하고_비동기_발급을_호출한다() {
 		// given
+		long userId = 20L;
 		long couponId = 10L;
-		long userId = 99L;
-		String appliedKey = "coupon:10:applied";
-		String reqKey = "coupon:10:req";
-		String seqKey = "coupon:10:seq";
 
-		given(setOps.add(appliedKey, "99")).willReturn(1L);      // 처음 신청
-		given(valueOps.increment(seqKey)).willReturn(5L);        // seq 발급
-		given(zsetOps.add(eq(reqKey), eq("99"), anyDouble())).willReturn(true);
+		givenRedisScriptResult(ACCEPTED);
 
 		// when
-		ApplyResponseDto res = service.apply(couponId, userId);
+		CouponApplyResponse response = service.apply(userId, couponId);
 
 		// then
-		assertThat(res).isNotNull();
-		assertThat(res.isSuccess()).isTrue();
-		assertThat(res.getCode()).isEqualTo(ApplyResponseDto.ApplyCode.ACCEPTED);
+		assertThat(response).isNotNull();
+		// DTO 구조에 맞게 getStatus(), status() 등으로 수정
+		assertThat(response.getStatus()).isEqualTo(CouponApplyResponse.CouponApplyStatus.ACCEPTED);
 
-		// ZADD가 호출됐는지 확인 (score까지 굳이 정확히 검증할 필요 없으면 anyDouble)
-		then(zsetOps).should().add(eq(reqKey), eq("99"), anyDouble());
-		then(setOps).should().add(appliedKey, "99");
-		then(valueOps).should().increment(seqKey);
+		verify(redis).execute(
+			eq(couponApplyScript),
+			eq(List.of("coupon:10:req", "coupon:10:quantity")),
+			eq("20"),
+			eq(String.valueOf(fixedClock.instant().getEpochSecond()))
+		);
+
+		verify(couponIssueAsyncService).issueAsync(userId, couponId);
 	}
 
 	@Test
-	void apply_duplicate_returnsDuplicate_andDoesNotEnqueue() {
+	void 중복_신청이면_DUPLICATE를_반환하고_비동기_발급을_호출하지_않는다() {
 		// given
+		long userId = 20L;
 		long couponId = 10L;
-		long userId = 99L;
-		String appliedKey = "coupon:10:applied";
 
-		given(setOps.add(appliedKey, "99")).willReturn(0L); // 이미 신청
+		givenRedisScriptResult(DUPLICATE);
 
 		// when
-		ApplyResponseDto res = service.apply(couponId, userId);
+		CouponApplyResponse response = service.apply(userId, couponId);
 
 		// then
-		assertThat(res).isNotNull();
-		assertThat(res.isSuccess()).isFalse();
-		assertThat(res.getCode()).isEqualTo(ApplyResponseDto.ApplyCode.DUPLICATE);
+		assertThat(response).isNotNull();
+		assertThat(response.getStatus()).isEqualTo(CouponApplyResponse.CouponApplyStatus.DUPLICATE);
 
-		// ZSET/INCR은 호출되면 안 됨
-		then(redis).should(never()).opsForZSet();
-		then(redis).should(never()).opsForValue();
+		verify(couponIssueAsyncService, never()).issueAsync(userId, couponId);
 	}
 
 	@Test
-	void apply_whenIncrReturnsNull_thenCompensateAndThrow() {
+	void 수량_부족이면_SOLD_OUT을_반환하고_비동기_발급을_호출하지_않는다() {
 		// given
+		long userId = 20L;
 		long couponId = 10L;
-		long userId = 99L;
-		String appliedKey = "coupon:10:applied";
-		String seqKey = "coupon:10:seq";
 
-		given(setOps.add(appliedKey, "99")).willReturn(1L);
-		given(valueOps.increment(seqKey)).willReturn(null); // 장애 상황
+		givenRedisScriptResult(SOLD_OUT);
 
-		// when / then
-		assertThatThrownBy(() -> service.apply(couponId, userId))
+		// when
+		CouponApplyResponse response = service.apply(userId, couponId);
+
+		// then
+		assertThat(response).isNotNull();
+		assertThat(response.getStatus()).isEqualTo(CouponApplyResponse.CouponApplyStatus.SOLD_OUT);
+
+		verify(couponIssueAsyncService, never()).issueAsync(userId, couponId);
+	}
+
+	@Test
+	void 쿠폰_수량이_초기화되지_않았으면_예외를_던진다() {
+		// given
+		long userId = 20L;
+		long couponId = 10L;
+
+		givenRedisScriptResult(QUANTITY_NOT_INITIALIZED);
+
+		// when & then
+		assertThatThrownBy(() -> service.apply(userId, couponId))
 			.isInstanceOf(IllegalStateException.class)
-			.hasMessageContaining("Redis INCR returned null");
+			.hasMessageContaining("Coupon quantity is not initialized");
 
-		// 보상: applied에서 제거했는지 확인
-		then(setOps).should().remove(appliedKey, "99");
+		verify(couponIssueAsyncService, never()).issueAsync(userId, couponId);
+	}
 
-		// ZSET enqueue는 호출되면 안 됨
-		then(redis).should(never()).opsForZSet();
+	@Test
+	void Redis_script_결과가_null이면_예외를_던진다() {
+		// given
+		long userId = 20L;
+		long couponId = 10L;
+
+		givenRedisScriptResult(null);
+
+		// when & then
+		assertThatThrownBy(() -> service.apply(userId, couponId))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("Redis script returned null");
+
+		verify(couponIssueAsyncService, never()).issueAsync(userId, couponId);
+	}
+
+	@Test
+	void 알수없는_script_결과면_예외를_던진다() {
+		// given
+		long userId = 20L;
+		long couponId = 10L;
+
+		givenRedisScriptResult(999L);
+
+		// when & then
+		assertThatThrownBy(() -> service.apply(userId, couponId))
+			.isInstanceOf(IllegalStateException.class)
+			.hasMessageContaining("Unknown script result");
+
+		verify(couponIssueAsyncService, never()).issueAsync(userId, couponId);
+	}
+
+	@Test
+	void couponId가_0이하면_예외를_던지고_Redis를_호출하지_않는다() {
+		// when & then
+		assertThatThrownBy(() -> service.apply(1L, 0L))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("couponId/userId must be > 0");
+
+		verifyNoInteractions(redis);
+		verifyNoInteractions(couponIssueAsyncService);
+	}
+
+	@Test
+	void userId가_0이하면_예외를_던지고_Redis를_호출하지_않는다() {
+		// when & then
+		assertThatThrownBy(() -> service.apply(0L, 1L))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("couponId/userId must be > 0");
+
+		verifyNoInteractions(redis);
+		verifyNoInteractions(couponIssueAsyncService);
+	}
+
+	private void givenRedisScriptResult(Long result) {
+		doReturn(result)
+			.when(redis)
+			.execute(
+				eq(couponApplyScript),
+				anyList(),
+				org.mockito.ArgumentMatchers.<Object>any(),
+				org.mockito.ArgumentMatchers.<Object>any()
+			);
 	}
 }

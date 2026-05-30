@@ -5,7 +5,6 @@ import java.util.function.Supplier;
 
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import kr.hhplus.be.server.domain.usercoupon.exception.CouponIssueBusyException;
@@ -13,7 +12,6 @@ import kr.hhplus.be.server.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 
 @Component
-@ConditionalOnProperty(prefix = "app.redisson", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class RedissonCouponLockExecutor implements CouponLockExecutor {
 	private final RedissonClient redissonClient;
