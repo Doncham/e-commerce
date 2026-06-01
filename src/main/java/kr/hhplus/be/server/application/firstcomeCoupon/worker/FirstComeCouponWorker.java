@@ -15,6 +15,7 @@ import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import kr.hhplus.be.server.application.firstcomeCoupon.CouponRedisKeys;
 import kr.hhplus.be.server.domain.usercoupon.UserCoupon;
 import kr.hhplus.be.server.infrastructure.persistence.userCoupon.UserCouponRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,16 +36,16 @@ public class FirstComeCouponWorker {
 	@Scheduled(fixedDelay = 1000)
 	public void issueCoupon() {
 		// event 진행 중인 couponId들을 가져오기
-		Set<String> couponIdSet = redis.opsForSet().members(eventCouponKey());
+		Set<String> couponIdSet = redis.opsForSet().members(CouponRedisKeys.eventCouponKey());
 
 		if(couponIdSet == null || couponIdSet.isEmpty()) return;
 
 		for (String couponId : couponIdSet) {
-			List<String> userIds =  popUsers(couponId);
+			List<String> userIds =  popUsers(Integer.parseInt(couponId));
 
 			// 락 잡고 옮기기
 			if(userIds.isEmpty()) {
-				RLock lock = redisson.getLock("lock:coupon:" + couponId);
+				RLock lock = redisson.getLock(CouponRedisKeys.lockKey(Integer.parseInt(couponId)));
 				boolean locked = false;
 				try {
 					// waitTime = 0, leaseTime = 30 -> 워커가 죽어도 30초 뒤에는 락을 해제함.
@@ -54,7 +55,7 @@ public class FirstComeCouponWorker {
 						continue;
 					}
 					// zset:req -> zset:pop으로 100개 복사하기
-					copyRequests(couponId);
+					copyRequests(Integer.parseInt(couponId));
 					// 쿠폰 발급을 실행하지 않고 copy만 수행. 왜냐면 다른 이벤트 쿠폰도 빠르게 복사가 필요함.
 					continue;
 				} catch (InterruptedException e) {
@@ -78,11 +79,11 @@ public class FirstComeCouponWorker {
 							Long.parseLong(couponId)
 						)
 					);
-					redis.opsForZSet().add(reqKey(couponId), userId, 1);
+					redis.opsForZSet().add(CouponRedisKeys.reqKey(Integer.parseInt(couponId)), userId, 1);
 				} catch (DataIntegrityViolationException e) {
 					// 중복 예외가 만약에 터졌다면 score 변경을 안했을 때 계속 재시도 대상이 될 수 있다.
 					log.info("Already issued coupon. couponId={}, userId={}", couponId, userId);
-					redis.opsForZSet().add(reqKey(couponId), userId, 1);
+					redis.opsForZSet().add(CouponRedisKeys.reqKey(Integer.parseInt(couponId)), userId, 1);
 				} catch (Exception e) {
 					log.warn("Failed to issue coupon. couponId={}, userId={}", couponId, userId, e);
 				}
@@ -92,9 +93,9 @@ public class FirstComeCouponWorker {
 
 	}
 
-	private void copyRequests(String couponId) {
+	private void copyRequests(Integer couponId) {
 		Set<ZSetOperations.TypedTuple<String>> couponRequests = redis.opsForZSet().rangeByScoreWithScores(
-			reqKey(couponId),
+			CouponRedisKeys.reqKey(couponId),
 			2,
 			clock.instant().getEpochSecond() - 10,
 			0,
@@ -109,13 +110,15 @@ public class FirstComeCouponWorker {
 			.filter(tuple -> tuple.getValue() != null && tuple.getScore() != null)
 			.collect(Collectors.toSet());
 
-		redis.opsForZSet().add(popKey(couponId), popTuples);
+		if(popTuples.isEmpty()) return;
+
+		redis.opsForZSet().add(CouponRedisKeys.popKey(couponId), popTuples);
 	}
 
-	private List<String> popUsers(String couponId) {
+	private List<String> popUsers(Integer couponId) {
 		// score >= 2 && score < 현재 초 - 10에 해당하는 요청 가져오기
 		Set<ZSetOperations.TypedTuple<String>> tuples =
-			redis.opsForZSet().popMin(popKey(couponId), POP_SIZE);
+			redis.opsForZSet().popMin(CouponRedisKeys.popKey(couponId), POP_SIZE);
 		if (tuples == null || tuples.isEmpty()) {
 			return List.of();
 		}
@@ -127,15 +130,5 @@ public class FirstComeCouponWorker {
 			.toList();
 	}
 
-	private String eventCouponKey() {
-		return "coupon:event:keys";
-	}
 
-	private String popKey(String couponId) {
-		return "coupon:" + couponId + ":pop";
-	}
-
-	private String reqKey(String couponId) {
-		return "coupon:" + couponId + ":req";
-	}
 }

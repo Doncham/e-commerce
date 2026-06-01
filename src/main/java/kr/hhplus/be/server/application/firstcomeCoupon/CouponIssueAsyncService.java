@@ -26,10 +26,6 @@ public class CouponIssueAsyncService {
 			log.info("이미 해당 쿠폰을 발급 받았습니다. userId = {}, couponId = {}", userId, couponId);
 		}
 		// score를 1로 변경
-		redis.opsForZSet().add(reqKey(couponId), String.valueOf(userId), 1);
-	}
-
-	private String reqKey(long couponId) {
-		return "coupont:" + couponId + ":req";
+		redis.opsForZSet().add(CouponRedisKeys.reqKey(couponId), String.valueOf(userId), 1);
 	}
 }

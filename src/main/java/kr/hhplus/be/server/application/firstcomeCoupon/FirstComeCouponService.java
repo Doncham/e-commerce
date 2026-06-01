@@ -24,10 +24,11 @@ public class FirstComeCouponService {
 	private final CouponIssueAsyncService couponIssueAsyncService;
 
 	public CouponApplyResponse apply(long userId, long couponId) {
+		// 이런 검증은 사실 DTO에서 해주면 됨.
 		if (couponId <= 0 || userId <= 0) throw new IllegalArgumentException("couponId/userId must be > 0");
 
-		String reqKey = reqKey(couponId);
-		String quantityKey = quantityKey(couponId);
+		String reqKey = CouponRedisKeys.reqKey(couponId);
+		String quantityKey = CouponRedisKeys.quantityKey(couponId);
 
 		// redis Zset에서 중복 신청 체크 + 수량 체크 + ZADD를 Lua로 감싸기
 		Long result = redis.execute(
@@ -70,13 +71,5 @@ public class FirstComeCouponService {
 		}
 
 		throw new IllegalStateException("Unknown script result: " + result);
-	}
-
-	private String reqKey(long couponId) {
-		return "coupon:" + couponId + ":req";
-	}
-
-	private String quantityKey(long couponId) {
-		return "coupon:" + couponId + ":quantity";
 	}
 }
