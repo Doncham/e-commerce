@@ -28,3 +28,8 @@ scrape_configs:
       - targets: [ "mysqld-exporter-replica2:9104" ]
         labels:
           role: "replica"
+
+  - job_name: "redis"
+    static_configs:
+      - targets:
+          - "redis-exporter:9121"
