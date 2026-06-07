@@ -3,10 +3,10 @@ spring:
     init:
       mode: always
   jpa:
-    show-sql: true
+    show-sql: false # 부하테스트할 때는 꼭 꺼둬라.
     hibernate:
-      format_sql: true
-      highlight_sql: true
+      format_sql: false
+      highlight_sql: false
       ddl-auto: update
     properties:
       hibernate:
@@ -32,17 +32,31 @@ app:
       username: appuser
       password: app1234
       driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        pool-name: primary-pool
+        maximum-pool-size: 20
+        minimum-idle: 10
+        connection-timeout: 1000
+        validation-timeout: 1000
+        max-lifetime: 1800000
     replica:
       url: jdbc:mysql://localhost:6402/ecdb
       username: appuser
       password: app1234
       driver-class-name: com.mysql.cj.jdbc.Driver
+      hikari:
+        pool-name: replica-pool
+        maximum-pool-size: 10
+        minimum-idle: 5
+        connection-timeout: 1000
+        validation-timeout: 1000
+        max-lifetime: 1800000
   redisson:
     enabled: true
 logging:
   level:
-    org.hibernate.SQL: debug
-    org.hibernate.orm.jdbc.bind: trace
+    org.hibernate.SQL: off #debug
+    org.hibernate.orm.jdbc.bind: off #trace
 
 server:
   tomcat:

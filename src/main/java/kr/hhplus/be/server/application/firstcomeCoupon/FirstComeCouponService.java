@@ -8,9 +8,6 @@ import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import io.micrometer.core.instrument.MeterRegistry;
-import io.micrometer.core.instrument.Timer;
-import kr.hhplus.be.server.domain.usercoupon.exception.CouponIssueBusyException;
-import kr.hhplus.be.server.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -27,38 +24,23 @@ public class FirstComeCouponService {
 	private final Clock clock;
 	private final CouponIssueAsyncService couponIssueAsyncService;
 	private final MeterRegistry meterRegistry;
-	private final RedisApplyLimiter redisApplyLimiter;
+
 
 	public CouponApplyResponse apply(long userId, long couponId) {
 		// 이런 검증은 사실 DTO에서 해주면 됨.
 		if (couponId <= 0 || userId <= 0) throw new IllegalArgumentException("couponId/userId must be > 0");
 
-		if (!redisApplyLimiter.tryAcquire()) {
-			throw new CouponIssueBusyException(ErrorCode.COUPON_ISSUE_BUSY, 1L);
-		}
 
 		String reqKey = CouponRedisKeys.reqKey(couponId);
 		String quantityKey = CouponRedisKeys.quantityKey(couponId);
 
-		Timer.Sample sample = Timer.start(meterRegistry);
 		// redis Zset에서 중복 신청 체크 + 수량 체크 + ZADD를 Lua로 감싸기
-		Long result;
-		try{
-			result = redis.execute(
+		Long result = redis.execute(
 				couponApplyScript,
 				List.of(reqKey, quantityKey),
 				String.valueOf(userId),
 				String.valueOf(clock.instant().getEpochSecond())
 			);
-		} finally {
-			sample.stop(
-				Timer.builder("coupon.redis.lua")
-					.description("Time spent waiting for Redis Lua coupon apply script")
-					.tag("script", "apply")
-					.register(meterRegistry)
-			);
-			redisApplyLimiter.release();
-		}
 
 		if (result == null) {
 			throw new IllegalStateException("Redis script returned null");
@@ -66,7 +48,7 @@ public class FirstComeCouponService {
 
 		if (result == ACCEPTED) {
 			// @Async로 처리(전용 스레드 풀을 만들어야할듯)
-			//couponIssueAsyncService.issueAsync(userId, couponId);
+			couponIssueAsyncService.issueAsync(userId, couponId);
 
 			return CouponApplyResponse.ok(
 				CouponApplyResponse.CouponApplyStatus.ACCEPTED,

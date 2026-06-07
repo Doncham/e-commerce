@@ -17,6 +17,8 @@ import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import com.zaxxer.hikari.HikariDataSource;
+
 import jakarta.persistence.EntityManagerFactory;
 
 @Configuration
@@ -28,9 +30,13 @@ public class DataSourceConfig {
 	}
 
 	@Bean
-	public DataSource primaryDataSource() {
-		return primaryDataSourceProperties()
+	@ConfigurationProperties("app.datasource.primary.hikari")
+	public HikariDataSource primaryDataSource(
+		@Qualifier("primaryDataSourceProperties") DataSourceProperties properties
+	) {
+		return properties
 			.initializeDataSourceBuilder()
+			.type(HikariDataSource.class)
 			.build();
 	}
 
@@ -41,9 +47,13 @@ public class DataSourceConfig {
 	}
 
 	@Bean
-	public DataSource replicaDataSource() {
-		return replicaDataSourceProperties()
+	@ConfigurationProperties("app.datasource.replica.hikari")
+	public HikariDataSource replicaDataSource(
+		@Qualifier("replicaDataSourceProperties") DataSourceProperties properties
+	) {
+		return properties
 			.initializeDataSourceBuilder()
+			.type(HikariDataSource.class)
 			.build();
 	}
 
