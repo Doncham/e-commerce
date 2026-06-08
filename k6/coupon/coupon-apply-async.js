@@ -11,10 +11,6 @@ const unknown = new Counter('coupon_unknown');
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
 const COUPON_ID = Number(__ENV.COUPON_ID || 1);
 
-// DB에 만들어둔 user 수.
-// 1만 명 만들었으면 USER_COUNT=10000
-const USER_COUNT = Number(__ENV.USER_COUNT || 10000);
-
 export const options = {
     scenarios: {
         coupon_apply: {
@@ -33,15 +29,10 @@ export const options = {
 };
 
 export default function () {
-    /**
-     * __ITER는 VU별 iteration이라 전체 유니크 보장이 약함.
-     * 그래서 __VU와 __ITER를 조합해서 userId를 만든다.
-     *
-     * 단, USER_COUNT보다 총 요청 수가 많으면 userId가 다시 반복된다.
-     * 예: USER_COUNT=10000인데 60000요청을 보내면 중복 신청이 발생함.
-     */
-    const rawUserId = (__VU * 1_000_000) + __ITER;
-    const userId = (rawUserId % USER_COUNT) + 1;
+
+    const USER_COUNT = Number(__ENV.USER_COUNT || 100000);
+
+    const userId = Math.floor(Math.random() * USER_COUNT) + 1;
 
     const url = `${BASE_URL}/api/v1/first-come-coupons/apply?userId=${userId}&couponId=${COUPON_ID}`;
 
