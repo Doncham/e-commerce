@@ -10,6 +10,7 @@ import org.springframework.data.redis.core.script.RedisScript;
 public class RedisScriptConfig {
 	@Bean
 	public RedisScript<Long> couponApplyScript() {
+		// coupon-apply.lua를 읽어서 Redis에서 실행 가능한 스크립트 객체로 등록한다.
 		DefaultRedisScript<Long> script = new DefaultRedisScript<>();
 		script.setLocation(new ClassPathResource("redis/coupon-apply.lua"));
 		script.setResultType(Long.class);

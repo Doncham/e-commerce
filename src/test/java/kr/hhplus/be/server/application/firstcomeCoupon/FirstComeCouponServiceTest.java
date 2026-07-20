@@ -16,6 +16,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
+import kr.hhplus.be.server.application.firstcomeCoupon.metric.CouponApplyMetrics;
+
 @ExtendWith(MockitoExtension.class)
 class FirstComeCouponServiceTest {
 
@@ -32,6 +34,8 @@ class FirstComeCouponServiceTest {
 
 	@Mock
 	private CouponIssueAsyncService couponIssueAsyncService;
+	@Mock
+	private CouponApplyMetrics couponApplyMetrics;
 
 	private FirstComeCouponService service;
 
@@ -46,7 +50,8 @@ class FirstComeCouponServiceTest {
 			redis,
 			couponApplyScript,
 			fixedClock,
-			couponIssueAsyncService
+			couponIssueAsyncService,
+			couponApplyMetrics
 		);
 	}
 
