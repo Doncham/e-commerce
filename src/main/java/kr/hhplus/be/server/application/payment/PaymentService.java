@@ -62,19 +62,44 @@ public class PaymentService {
 
 
 	@Transactional
-	public PaymentAttempt preparePayment(Long orderId, String idemKey) {
+	public PaymentAttempt preparePayment(Long orderId) {
 		Order order = orderRepo.findByIdForUpdate(orderId)
 			.orElseThrow(() -> new OrderNotFoundException(ErrorCode.NOT_FOUND_ORDER, orderId));
 
+		// **하나의 주문에는 성공 결제가 하나만 존재할 수 있다.**
 		if(order.isPaid()) {
 			// 이미 성공 결제면 예외
 			throw new OrderAlreadyPaidOrderException(ErrorCode.ALREADY_PAID_ORDER, orderId);
 		}
 
-		Payment pending = Payment.createPayment(order, idemKey, order.getPayAmount(), PaymentGatewayType.TOSS);
-		pending = paymentRepo.saveAndFlush(pending); // 유니크 충돌 빠르게 확정
+		// **하나의 주문에는 동시에 하나의 결제 시도만 존재할 수 있다.**
+		// paymentPending: 이미 Payment가 존재함.
+		// paymentComplete: 이미 PG 결제됨.
+		if(order.isPaymentPending() || order.isPaymentComplete()) {
+			Payment existing = paymentRepo.findByOrderId(orderId)
+				.orElseThrow();
+			return PaymentAttempt.of(
+				orderId,
+				existing.getId(),
+				existing.getAmount(),
+				existing.getIdempotencyKey(),
+				order.getStatus()
+			);
+		}
 
-		return PaymentAttempt.of(orderId, pending.getId(), pending.getAmount(), pending.getIdempotencyKey());
+		if(!order.canStartPayment()) {
+			throw new IllegalStateException("결제 가능한 주문 상태가 아닙니다.");
+		}
+
+		Payment pending = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
+		// 유니크 충돌 빠르게 확정
+		pending = paymentRepo.saveAndFlush(pending);
+
+		order.paymentPending();
+		return PaymentAttempt.of(orderId, pending.getId(), pending.getAmount(), pending.getIdempotencyKey(), order.getStatus());
+
+
+
 	}
 
 	@Transactional

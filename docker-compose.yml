@@ -188,6 +188,26 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app-net
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.80.2
+    container_name: redis-exporter
+    command:
+      - "--redis.addr=redis://redis:6379"
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+    networks:
+      - app-net
+
 
 volumes:
   ecdb_mysql_data:

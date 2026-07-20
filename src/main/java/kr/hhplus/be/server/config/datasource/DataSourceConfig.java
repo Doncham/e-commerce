@@ -12,14 +12,18 @@ import org.springframework.boot.orm.jpa.EntityManagerFactoryBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.context.annotation.Profile;
 import org.springframework.jdbc.datasource.LazyConnectionDataSourceProxy;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import com.zaxxer.hikari.HikariDataSource;
+
 import jakarta.persistence.EntityManagerFactory;
 
 @Configuration
+@Profile("!prod")
 public class DataSourceConfig {
 	@Bean
 	@ConfigurationProperties("app.datasource.primary")
@@ -28,9 +32,13 @@ public class DataSourceConfig {
 	}
 
 	@Bean
-	public DataSource primaryDataSource() {
-		return primaryDataSourceProperties()
+	@ConfigurationProperties("app.datasource.primary.hikari")
+	public HikariDataSource primaryDataSource(
+		@Qualifier("primaryDataSourceProperties") DataSourceProperties properties
+	) {
+		return properties
 			.initializeDataSourceBuilder()
+			.type(HikariDataSource.class)
 			.build();
 	}
 
@@ -41,9 +49,13 @@ public class DataSourceConfig {
 	}
 
 	@Bean
-	public DataSource replicaDataSource() {
-		return replicaDataSourceProperties()
+	@ConfigurationProperties("app.datasource.replica.hikari")
+	public HikariDataSource replicaDataSource(
+		@Qualifier("replicaDataSourceProperties") DataSourceProperties properties
+	) {
+		return properties
 			.initializeDataSourceBuilder()
+			.type(HikariDataSource.class)
 			.build();
 	}
 

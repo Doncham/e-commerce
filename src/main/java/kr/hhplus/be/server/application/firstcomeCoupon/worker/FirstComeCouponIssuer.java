@@ -2,7 +2,6 @@ package kr.hhplus.be.server.application.firstcomeCoupon.worker;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.domain.usercoupon.UserCoupon;
 import kr.hhplus.be.server.infrastructure.persistence.userCoupon.UserCouponRepository;

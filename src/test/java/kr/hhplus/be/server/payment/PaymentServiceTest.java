@@ -82,21 +82,21 @@ class PaymentServiceTest {
 
 		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
-		Payment saved = Payment.createPayment(order, idemKey, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment saved = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(saved, "id", 10L);
 
-		when(paymentRepository.saveAndFlush(any(Payment.class))).thenReturn(saved);
+		when(paymentRepository.save(any(Payment.class))).thenReturn(saved);
 
 		// when
-		PaymentAttempt attempt = paymentService.preparePayment(orderId, idemKey);
+		PaymentAttempt attempt = paymentService.preparePayment(orderId);
 
 		// then
 		assertEquals(10L, attempt.getPaymentId());
 		assertEquals(order.getPayAmount(), attempt.getAmount());
-		assertEquals(idemKey, attempt.getIdempotencyKey());
+		assertEquals("orderId:" + orderId, attempt.getIdempotencyKey());
 
 		verify(orderRepository).findByIdForUpdate(orderId);
-		verify(paymentRepository).saveAndFlush(any(Payment.class));
+		verify(paymentRepository).save(any(Payment.class));
 	}
 
 	@Test
@@ -111,7 +111,7 @@ class PaymentServiceTest {
 
 		// when & then
 		assertThrows(OrderAlreadyPaidOrderException.class,
-			() -> paymentService.preparePayment(orderId, idemKey));
+			() -> paymentService.preparePayment(orderId));
 
 		verify(orderRepository).findByIdForUpdate(orderId);
 		verify(paymentRepository, never()).saveAndFlush(any());
@@ -124,7 +124,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, idemKey, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
@@ -165,7 +165,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, idemKey, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
@@ -203,7 +203,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, idemKey, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 
@@ -242,7 +242,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, idemKey, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
@@ -277,7 +277,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, idemKey, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		payment.paymentSuccess("tx-existing", LocalDateTime.now());

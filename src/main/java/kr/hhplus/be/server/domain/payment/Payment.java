@@ -6,12 +6,11 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
@@ -27,14 +26,6 @@ import lombok.NoArgsConstructor;
 @Table(
 	uniqueConstraints = {
 		@UniqueConstraint(
-			name = "ux_orderId_and_idempotencyKey",
-			columnNames = {"order_id", "idempotency_key"
-		}),
-		@UniqueConstraint(
-			name = "ux_payment_pg_transaction_id",
-			columnNames = "pg_transaction_id"
-		),
-		@UniqueConstraint(
 			name = "uk_payment_paid_at",
 			columnNames = "paid_at"
 		)
@@ -45,9 +36,8 @@ public class Payment extends BaseTimeEntity {
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
 
-	// 한 주문에 대해서 결제가 여러번 생길 수도 있을듯
-	@ManyToOne(fetch = FetchType.LAZY, optional = false)
-	@JoinColumn(name = "order_id", nullable = false)
+	@OneToOne
+	@JoinColumn(name = "order_id", nullable = false, unique = true)
 	private Order order;
 
 	// pg에 실제로 요청한 금액
@@ -73,26 +63,27 @@ public class Payment extends BaseTimeEntity {
 	@Column(nullable = false)
 	private PaymentGatewayType gatewayType;
 
-	private Payment(Order order, Long amount, PaymentStatus status, String idemKey, String pgTransactionId, LocalDateTime paidAt, PaymentGatewayType gatewayType) {
+	private Payment(Order order, Long amount, PaymentStatus status, String idemKey, LocalDateTime paidAt, String pgTransactionId, PaymentGatewayType gatewayType) {
 		this.order = order;
 		this.amount = amount;
 		this.status = status;
 		this.idempotencyKey = idemKey;
-		this.pgTransactionId = pgTransactionId;
 		this.paidAt = paidAt;
 		this.canceledAmount = 0L;
 		this.gatewayType = gatewayType;
+		this.pgTransactionId = pgTransactionId;
 	}
-	public static Payment createPayment(Order order, String idemKey, Long amount, PaymentGatewayType gatewayType) {
-		return new Payment(order, amount, PaymentStatus.REQUESTED, idemKey,null, null, gatewayType);
+	// 이렇게 간단하게 IdempotencyKey 만들어도 되나?
+	public static Payment createPayment(Order order, Long amount, PaymentGatewayType gatewayType) {
+		return new Payment(order, amount, PaymentStatus.REQUESTED, "orderId:" + order.getId(), null, null, gatewayType);
 	}
 
 	public void paymentSuccess(String pgTransactionId, LocalDateTime processedAt) {
 		if(this.status != PaymentStatus.REQUESTED) {
 			throw new IllegalArgumentException("paymentStatus가 REQUESTED가 아닙니다. paymentId = " + this.id);
 		}
-		this.status = PaymentStatus.SUCCESS;
 		this.pgTransactionId = pgTransactionId;
+		this.status = PaymentStatus.SUCCESS;
 		this.paidAt = processedAt;
 	}
 
@@ -142,5 +133,6 @@ public class Payment extends BaseTimeEntity {
 	private void partialCancel() {
 		this.status = PaymentStatus.PARTIAL_CANCELED;
 	}
+
 
 }

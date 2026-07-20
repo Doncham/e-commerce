@@ -16,11 +16,12 @@ import kr.hhplus.be.server.api.payment.request.PayRequest;
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.request.PaymentGatewayRequest;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
-import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.application.payment.PaymentFacade;
 import kr.hhplus.be.server.application.payment.PaymentQueryService;
+import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
 import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
+import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.order.exception.OrderAlreadyPaidOrderException;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayPort;
 import kr.hhplus.be.server.domain.payment.PaymentGatewayStatus;
@@ -35,7 +36,6 @@ public class PaymentFacadeTest {
 	private PaymentGatewayPort pgPort;
 	@Mock
 	private PaymentQueryService query;
-
 	@Test
 	void givenValidRequest_whenPay_thenPreparePgComplete_inOrder_andVerifyPgArgs() {
 		// given
@@ -46,7 +46,7 @@ public class PaymentFacadeTest {
 
 		PayRequest req = PayRequest.of(idemKey, orderId, PaymentGatewayType.TOSS);
 
-		PaymentAttempt attempt = PaymentAttempt.of(orderId, paymentId, amount, idemKey);
+		PaymentAttempt attempt = PaymentAttempt.of(orderId, paymentId, amount, idemKey, OrderStatus.PAYMENT_PENDING);
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of("tx-1", PaymentGatewayStatus.SUCCESS, amount, null, null);
 		PayResponse expected = PayResponse.builder()
 			.orderId(orderId)
@@ -54,7 +54,7 @@ public class PaymentFacadeTest {
 			.transactionId("tx-1")
 			.build();
 
-		when(command.preparePayment(orderId, idemKey)).thenReturn(attempt);
+		when(command.preparePayment(orderId)).thenReturn(attempt);
 		when(pgPort.requestPayment(any())).thenReturn(pgResp);
 		when(command.completePayment(paymentId, pgResp)).thenReturn(expected);
 
@@ -66,7 +66,7 @@ public class PaymentFacadeTest {
 
 		// then: 호출 순서 + 인자 검증
 		var inOrder = inOrder(command, pgPort);
-		inOrder.verify(command).preparePayment(orderId, idemKey);
+		inOrder.verify(command).preparePayment(orderId);
 
 		ArgumentCaptor<PaymentGatewayRequest> captor = ArgumentCaptor.forClass(PaymentGatewayRequest.class);
 		inOrder.verify(pgPort).requestPayment(captor.capture());
@@ -76,7 +76,7 @@ public class PaymentFacadeTest {
 
 		inOrder.verify(command).completePayment(paymentId, pgResp);
 
-		verify(query, never()).findPayResult(any(), any());
+		verify(query, never()).findPayResult(any());
 	}
 
 	@Test
@@ -86,9 +86,9 @@ public class PaymentFacadeTest {
 		String idemKey = "idem-123";
 		PayRequest req = PayRequest.of(idemKey, orderId, PaymentGatewayType.TOSS);
 
-		when(command.preparePayment(orderId, idemKey)).thenThrow(new DataIntegrityViolationException("dup"));
+		when(command.preparePayment(orderId)).thenThrow(new DataIntegrityViolationException("dup"));
 		PayResponse fallback = PayResponse.builder().orderId(orderId).message("fallback").build();
-		when(query.findPayResult(orderId, idemKey)).thenReturn(fallback);
+		when(query.findPayResult(orderId)).thenReturn(fallback);
 
 		// when
 		PayResponse res = paymentFacade.pay(req);
@@ -97,7 +97,7 @@ public class PaymentFacadeTest {
 		assertSame(fallback, res);
 		verify(pgPort, never()).requestPayment(any());
 		verify(command, never()).completePayment(any(), any());
-		verify(query).findPayResult(orderId, idemKey);
+		verify(query).findPayResult(orderId);
 	}
 
 	@Test
@@ -107,11 +107,11 @@ public class PaymentFacadeTest {
 		String idemKey = "idem-123";
 		PayRequest req = PayRequest.of(idemKey, orderId,PaymentGatewayType.TOSS);
 
-		when(command.preparePayment(orderId, idemKey))
+		when(command.preparePayment(orderId))
 			.thenThrow(mock(OrderAlreadyPaidOrderException.class));
 
 		PayResponse fallback = PayResponse.builder().orderId(orderId).message("already paid").build();
-		when(query.findPayResult(orderId, idemKey)).thenReturn(fallback);
+		when(query.findPayResult(orderId)).thenReturn(fallback);
 
 		// when
 		PayResponse res = paymentFacade.pay(req);

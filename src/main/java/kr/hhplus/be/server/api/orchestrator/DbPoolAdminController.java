@@ -3,6 +3,7 @@ package kr.hhplus.be.server.api.orchestrator;
 import javax.sql.DataSource;
 
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -18,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 @RestController
 @RequestMapping("/internal/db-pool")
+@Profile("!prod")
 public class DbPoolAdminController {
 	private static final String INTERNAL_TOKEN =  "change-me-secret";
 

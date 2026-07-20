@@ -208,7 +208,7 @@ public class PaymentIdempIntegrationTest {
 		Point pointAfterPayment = pointRepository.findByUserId(u.getId()).get();
 		Inventory inventoryAfterPayment = inventoryRepository.findByProductId(p.getId()).get();
 		Order orderAfterPayment = orderRepository.findByUserIdAndIdempotencyKey(u.getId(), orderRequest.getIdempotencyKey()).get();
-		Long count = paymentRepository.countByOrderIdAndIdempotencyKey(order.getId(), payIdemKey);
+		Long count = paymentRepository.countByOrderId(order.getId());
 		Long outboxCount = outboxEventRepository.countByAggregateIdAndAggregateType(order.getId(), AggregateType.ORDER);
 
 		Assertions.assertEquals(2000L, pointAfterPayment.getBalance());

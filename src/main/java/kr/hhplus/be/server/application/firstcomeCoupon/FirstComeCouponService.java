@@ -1,86 +1,119 @@
 package kr.hhplus.be.server.application.firstcomeCoupon;
 
+import static kr.hhplus.be.server.application.firstcomeCoupon.metric.CouponApplyMetricResult.*;
+
 import java.time.Clock;
-import java.time.Duration;
+import java.util.List;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
+import kr.hhplus.be.server.application.firstcomeCoupon.metric.CouponApplyMetrics;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
-/*
-*
-* Redis keys (couponId 기준):
-* - coupon:{id}:req        (ZSET)  : 선착순 대기열 (member=userId, score=timestamp+seq)
-* - coupon:{id}:applied    (SET)   : 신청 중복 방지(1인 1회 신청)
-* - coupon:{id}:seq        (STRING): 동일 ms tie-break용 시퀀스
-*
-*/
+@Slf4j
 public class FirstComeCouponService {
-	private static final long SHIFT = 1_000L;
-	private static final Duration APPLY_TTL = Duration.ofMinutes(1);
-	private static final Duration REQ_TTL = Duration.ofDays(2);
+
+	private static final long ACCEPTED_RESULT = 1L;
+	private static final long DUPLICATE_RESULT = 2L;
+	private static final long SOLD_OUT_RESULT = 3L;
+	private static final long QUANTITY_NOT_INITIALIZED_RESULT = 4L;
 
 	private final StringRedisTemplate redis;
+	private final RedisScript<Long> couponApplyScript;
 	private final Clock clock;
-	public ApplyResponseDto apply(long couponId, long userId) {
-		if (couponId <= 0 || userId <= 0) throw new IllegalArgumentException("couponId/userId must be > 0");
+	private final CouponIssueAsyncService couponIssueAsyncService;
+	private final CouponApplyMetrics couponApplyMetrics;
 
-		final String appliedKey = appliedKey(couponId);
-		final String reqKey = reqKey(couponId);
-		final String seqKey = seqKey(couponId);
-
-
-		// 1) 신청 중복 방지
-		// 처음 신청 시 1, 이미 신청했으면 0
-		Long added = redis.opsForSet().add(appliedKey, String.valueOf(userId));
-		// redis 장애 시
-		if(added == null) throw new IllegalStateException("Redis SET add returned null");
-
-		if (added == 0L) {
-			// 이미 신청한 유저
-			return ApplyResponseDto.fail(ApplyResponseDto.ApplyCode.DUPLICATE,"이미 신청했습니다.");
+	public CouponApplyResponse apply(long userId, long couponId) {
+		if (couponId <= 0 || userId <= 0) {
+			throw new IllegalArgumentException(
+				"couponId/userId must be > 0"
+			);
 		}
-		// 이벤트 후 자동 청소
-		redis.expire(appliedKey, APPLY_TTL);
 
-		// 2) 선착순 큐잉 (ZSET)
-		long nowMs = clock.millis();
+		String reqKey = CouponRedisKeys.reqKey(couponId);
+		String quantityKey =
+			CouponRedisKeys.quantityKey(couponId);
 
-		// 전역 seq 증가(원자적). 타이브레이커 역할
-		Long seq = redis.opsForValue().increment(seqKey);
-		if (seq == null) {
-			// seq를 못 만들었으면 신청 자체를 실패 처리(보상)
-			redis.opsForSet().remove(appliedKey, String.valueOf(userId));
-			throw new IllegalStateException("Redis INCR returned null");
+		Long result;
+
+		try {
+			result = redis.execute(
+				couponApplyScript,
+				// KEYS[1] = reqKey, KEYS[2] = quantityKey
+				List.of(reqKey, quantityKey),
+				// ARGV[1] = userId, ARGV[2] = currentEpochSecond
+				String.valueOf(userId),
+				String.valueOf(
+					clock.instant().getEpochSecond()
+				)
+			);
+		} catch (RuntimeException exception) {
+			couponApplyMetrics.increment(REDIS_ERROR);
+			throw exception;
 		}
-		redis.expire(seqKey, REQ_TTL);
 
-		long packed = nowMs * SHIFT + (seq % SHIFT);
-		double score = (double) packed;
-		Boolean ok = redis.opsForZSet().add(reqKey, String.valueOf(userId), score);
-		if (ok == null || !ok) {
-			// 큐잉 실패 시 보상
-			redis.opsForSet().remove(appliedKey, String.valueOf(userId));
-			throw new IllegalStateException("Failed to enqueue request into ZSET");
+		if (result == null) {
+			couponApplyMetrics.increment(NULL_RESULT);
+
+			throw new IllegalStateException(
+				"Redis script returned null"
+			);
 		}
-		redis.expire(reqKey, REQ_TTL);
 
-		return ApplyResponseDto.ok(ApplyResponseDto.ApplyCode.ACCEPTED,"신청 접수");
+		if (result == ACCEPTED_RESULT) {
+			couponApplyMetrics.increment(ACCEPTED);
+			//System.out.println("CouponThread: " + Thread.currentThread().getId() +", || userId: " + userId + ". || couponId:" + couponId + "mili:" + System.currentTimeMillis());
+			couponIssueAsyncService.issueAsync(
+				userId,
+				couponId
+			);
+			//System.out.println("CouponThread: " + Thread.currentThread().getId() +", || userId: " + userId + ". || couponId:" + couponId + "mili:" + System.currentTimeMillis());
 
-	}
+			return CouponApplyResponse.ok(
+				CouponApplyResponse.CouponApplyStatus.ACCEPTED,
+				"신청 접수"
+			);
+		}
 
-	private String reqKey(long couponId) {
-		return "coupon:" + couponId + ":req";
-	}
+		if (result == DUPLICATE_RESULT) {
+			couponApplyMetrics.increment(DUPLICATE);
 
-	private String appliedKey(long couponId) {
-		return "coupon:" + couponId + ":applied";
-	}
+			return CouponApplyResponse.fail(
+				CouponApplyResponse.CouponApplyStatus.DUPLICATE,
+				"이미 신청했습니다."
+			);
+		}
 
-	private String seqKey(long couponId) {
-		return "coupon:" + couponId + ":seq";
+		if (result == SOLD_OUT_RESULT) {
+			couponApplyMetrics.increment(SOLD_OUT);
+
+			return CouponApplyResponse.fail(
+				CouponApplyResponse.CouponApplyStatus.SOLD_OUT,
+				"쿠폰이 모두 소진되었습니다."
+			);
+		}
+
+		if (result == QUANTITY_NOT_INITIALIZED_RESULT) {
+			couponApplyMetrics.increment(
+				QUANTITY_NOT_INITIALIZED
+			);
+
+			throw new IllegalStateException(
+				"Coupon quantity is not initialized. couponId="
+					+ couponId
+			);
+		}
+
+		couponApplyMetrics.increment(UNKNOWN_RESULT);
+
+		throw new IllegalStateException(
+			"Unknown script result: " + result
+		);
 	}
 }

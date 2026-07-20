@@ -1,7 +1,8 @@
 spring:
   sql:
     init:
-      mode: always
+      mode: never
+
   jpa:
     show-sql: false # 부하테스트할 때는 꼭 꺼둬라.
     hibernate:
@@ -10,58 +11,50 @@ spring:
       ddl-auto: update
     properties:
       hibernate:
-        format_sql: true
         dialect: org.hibernate.dialect.MySQL8Dialect
     defer-datasource-initialization: true
     open-in-view: false
+
+  datasource:
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT:3306}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      pool-name: primary-pool
+      maximum-pool-size: ${DB_POOL_MAX:20}
+      minimum-idle: ${DB_POOL_MIN:10}
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT}
+      validation-timeout: 1000
+      max-lifetime: ${HIKARI_MAX_LIFETIME}
+
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
       timeout: 500ms
+      connect-timeout: 500ms
       database: 0
+
   redis:
     redisson:
       mode: file
       file: classpath:redisson.yml
 
 app:
-  datasource:
-    primary:
-      url: jdbc:mysql://localhost:6401/ecdb
-      username: appuser
-      password: app1234
-      driver-class-name: com.mysql.cj.jdbc.Driver
-      hikari:
-        pool-name: primary-pool
-        maximum-pool-size: 20
-        minimum-idle: 10
-        connection-timeout: 1000
-        validation-timeout: 1000
-        max-lifetime: 1800000
-    replica:
-      url: jdbc:mysql://localhost:6402/ecdb
-      username: appuser
-      password: app1234
-      driver-class-name: com.mysql.cj.jdbc.Driver
-      hikari:
-        pool-name: replica-pool
-        maximum-pool-size: 10
-        minimum-idle: 5
-        connection-timeout: 1000
-        validation-timeout: 1000
-        max-lifetime: 1800000
   redisson:
     enabled: true
+
 logging:
   level:
+    root: INFO
     org.hibernate.SQL: off #debug
     org.hibernate.orm.jdbc.bind: off #trace
 
 server:
   tomcat:
     threads:
-      max: 300
+      max: 50
       min-spare: 50
     max-connections: 8192
     mbeanregistry:
