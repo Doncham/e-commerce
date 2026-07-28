@@ -4,5 +4,5 @@ import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
 import kr.hhplus.be.server.api.order.response.OrderCreateResponse;
 
 public interface OrderUseCase {
-	OrderCreateResponse createOrder(OrderDraftCreateRequest request);
+	OrderCreateResponse createOrUpdateOrder(OrderDraftCreateRequest request);
 }

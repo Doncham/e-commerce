@@ -1,7 +1,7 @@
 package kr.hhplus.be.server.api.order;
 
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -16,9 +16,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class OrderController {
 	private final OrderFacade orderFacade;
-	@PostMapping("/create")
-	public ResponseEntity<OrderCreateResponse> createOrder(@RequestBody OrderDraftCreateRequest request) {
-		OrderCreateResponse response = orderFacade.createOrder(request);
+	@PutMapping("/create")
+	public ResponseEntity<OrderCreateResponse> createOrUpdateOrder(@RequestBody OrderDraftCreateRequest request) {
+		OrderCreateResponse response = orderFacade.createOrUpdateOrder(request);
 		return ResponseEntity.ok(response);
 	}
 }

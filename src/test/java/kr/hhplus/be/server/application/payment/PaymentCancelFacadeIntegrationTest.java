@@ -196,7 +196,7 @@ class PaymentCancelFacadeIntegrationTest {
 
 		order = fixturePersist.saveAndFlush(orderRepo, order);
 
-		Payment payment = TestFixture.successPayment(order, order.getPayAmount());
+		Payment payment = TestFixture.successPayment(order, order.getPaymentAmount());
 
 		// 취소 가능 상태를 맞추기 위해 주문도 paid 처리
 		order.paid();

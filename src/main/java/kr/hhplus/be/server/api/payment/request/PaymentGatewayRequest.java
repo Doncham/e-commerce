@@ -24,7 +24,7 @@ public class PaymentGatewayRequest {
 		return new PaymentGatewayRequest(
 			PaymentPurpose.ORDER_PAYMENT,
 			order.getId(),
-			order.getPayAmount(),
+			order.getPaymentAmount(),
 			idempotencyKey
 		);
 	}

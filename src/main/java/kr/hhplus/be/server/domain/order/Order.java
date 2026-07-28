@@ -20,6 +20,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotEmpty;
 import kr.hhplus.be.server.entity.BaseTimeEntity;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.user.User;
@@ -33,8 +34,8 @@ import lombok.NoArgsConstructor;
 @Table(
 	name = "orders",
 	uniqueConstraints = @UniqueConstraint(
-		name = "ux_userid_and_idempotencyKey",
-		columnNames = {"user_id", "idempotency_key"}
+		name = "ux_userid_and_checkoutid",
+		columnNames = {"user_id", "checkout_id"}
 	),
 	indexes = {
 		@Index(name = "ix_orders_created_at", columnList = "created_at")
@@ -62,63 +63,85 @@ public class Order extends BaseTimeEntity {
 	@Column(nullable = false)
 	private Long couponDiscountTotal;
 	@Column(nullable = false)
-	private Long payAmount;
+	private Long paymentAmount;
 	private String memo;
 	// 이것도 차감해줘야지
 	@Column(nullable = false)
 	private Long pointUsedTotal;
-	@Column(name="idempotency_key", nullable = false)
-	private String idempotencyKey;
+	@Column(name="checkout_id", nullable = false)
+	@NotEmpty // "" , "  "도 막음.
+	private String checkoutId;
 
 	@OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
-	private List<OrderProduct> orderProducts;
+	private List<OrderProduct> orderProducts = new ArrayList<>();
 
-	public static Order createDraft(User user, ShippingInfo shippingInfo, String idempotencyKey) {
-		return new Order(user, shippingInfo, idempotencyKey);
+	public static Order createDraft(User user, String checkoutId) {
+		return new Order(user, checkoutId);
 	}
-	private Order(User user, ShippingInfo shippingInfo, String idempotencyKey) {
+	private Order(User user, String checkoutId) {
 		this.user = Objects.requireNonNull(user);
-		this.shippingAddress = Objects.requireNonNull(shippingInfo);
-		this.idempotencyKey = Objects.requireNonNull(idempotencyKey);
+		this.checkoutId = Objects.requireNonNull(checkoutId);
 		this.status = OrderStatus.DRAFT;
 		this.itemTotal = 0L;
 		this.couponDiscountTotal = 0L;
-		this.payAmount = 0L;
+		this.paymentAmount = 0L;
 		this.pointUsedTotal = 0L;
-		this.orderProducts = new ArrayList<>();
 	}
 
 
-	public void completeOrderDraft(
+	public void updateOrderDraft(
 		List<OrderProduct> items,
-		Long couponDiscountTotal,
 		String memo,
-		Long pointUsedTotal
+		ShippingInfo shippingInfo
 	) {
 		ensureDraftState();
 		// null, empty 체크
 		validateItems(items);
+		// update 전에 초기화
+		this.orderProducts.clear();
 		items.forEach(this::addOrderProduct);
 
 		// item 총 가격 계산
 		this.itemTotal = calculateItemTotal();
-		this.couponDiscountTotal = couponDiscountTotal == null ? 0L : couponDiscountTotal;
-		this.pointUsedTotal = pointUsedTotal == null ? 0L : pointUsedTotal;
-		long payable = this.itemTotal - this.couponDiscountTotal - this.pointUsedTotal;
-		if (payable < 0) {
-			throw new IllegalStateException("payAmount cannot be negative");
-		}
-		this.payAmount = payable;
-
-		// 포인트 할당 검증
-		long allocatedPointTotal = calculateAllocatedPointTotal();
-		if (allocatedPointTotal != this.pointUsedTotal) {
-			throw new IllegalStateException("allocated pointUsedTotal sum mismatch");
-		}
-
+		this.couponDiscountTotal = 0L;
+		this.pointUsedTotal = 0L;
+		this.paymentAmount = itemTotal;
 		this.memo = memo;
-		this.status = OrderStatus.CREATED;
+		this.shippingAddress = Objects.requireNonNull(shippingInfo, "shippingInfo is required");
 
+	}
+	// 결제 준비 메서드(초기 버전)
+	public void preparePayment(
+		long couponDiscountTotal,
+		long pointUsedTotal
+	) {
+		ensureDraftState();
+
+		if (couponDiscountTotal < 0 || pointUsedTotal < 0) {
+			throw new IllegalArgumentException(
+				"할인 금액은 음수일 수 없습니다."
+			);
+		}
+
+		long calculatedPaymentAmount =
+			itemTotal - couponDiscountTotal - pointUsedTotal;
+
+		if (calculatedPaymentAmount < 0) {
+			throw new IllegalArgumentException(
+				"최종 결제 금액은 음수일 수 없습니다."
+			);
+		}
+
+		if (calculateAllocatedPointTotal() != pointUsedTotal) {
+			throw new IllegalStateException(
+				"배분된 포인트 합계가 일치하지 않습니다."
+			);
+		}
+
+		this.couponDiscountTotal = couponDiscountTotal;
+		this.pointUsedTotal = pointUsedTotal;
+		this.paymentAmount = calculatedPaymentAmount;
+		this.status = OrderStatus.PAYMENT_PENDING;
 	}
 	private void ensureDraftState() {
 		if(this.status != OrderStatus.DRAFT){
@@ -138,15 +161,22 @@ public class Order extends BaseTimeEntity {
 	}
 
 	// 양방향 연관관계 메서드
-	public void addOrderProduct(OrderProduct orderProduct) {
+	private void addOrderProduct(OrderProduct orderProduct) {
 		orderProducts.add(orderProduct);
 		orderProduct.initOrder(this);
 	}
 
 	public void paid() {
+		if (status != OrderStatus.PAYMENT_PENDING) {
+			throw new IllegalStateException(
+				"PAYMENT_PENDING 상태 주문만 결제 완료할 수 있습니다."
+			);
+		}
+
 		this.status = OrderStatus.PAID;
 	}
 	public void failed() {
+		// 이거는 상태 검증 어떻게 해야할지 고민
 		this.status = OrderStatus.FAILED;
 	}
 	public boolean isPaid() {
@@ -174,30 +204,19 @@ public class Order extends BaseTimeEntity {
 	}
 
 	public void paymentPending() {
-		if (this.status != OrderStatus.CREATED) {
-			throw new IllegalStateException("CREATED 상태 주문만 결제 시작 가능");
+		if (this.status != OrderStatus.DRAFT) {
+			throw new IllegalStateException("DRAFT 상태 주문만 결제를 준비할 수 있습니다.");
 		}
 		this.status = OrderStatus.PAYMENT_PENDING;
-	}
-
-	public void paymentComplete() {
-		if (this.status != OrderStatus.PAYMENT_PENDING) {
-			throw new IllegalStateException("PAYMENT_PENDING 상태 주문만 PG 요청 가능");
-		}
-		this.status = OrderStatus.PAYMENT_COMPLETE;
 	}
 
 	public boolean isPaymentPending() {
 		return this.status == OrderStatus.PAYMENT_PENDING;
 	}
 
-	public boolean isPaymentComplete() {
-		return this.status == OrderStatus.PAYMENT_COMPLETE;
-	}
 
 	public boolean canStartPayment() {
-		return this.status == OrderStatus.CREATED;
+		return this.status == OrderStatus.DRAFT;
 	}
-
 
 }

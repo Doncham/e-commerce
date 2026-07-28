@@ -56,17 +56,16 @@ public class OrderProduct extends BaseTimeEntity{
 	private PaymentCancel paymentCancel;
 
 
-	private OrderProduct(Long productId, String productNameSnap, Long unitPrice, Long couponId) {
+	private OrderProduct(Long productId, String productNameSnap, Long unitPrice) {
 		this.productId = Objects.requireNonNull(productId);
 		this.productNameSnap = Objects.requireNonNull(productNameSnap);
 		this.unitPrice = Objects.requireNonNull(unitPrice);
-		this.appliedCouponId = couponId;
 		this.allocatedCouponDiscount = 0L;
 		this.allocatedPointUsed = 0L;
 		this.status = OrderProductStatus.ORDERED;
 	}
-	public static OrderProduct create(Long productId, String productNameSnap, Long unitPrice, Long couponId) {
-		return new OrderProduct(productId, productNameSnap, unitPrice, couponId);
+	public static OrderProduct create(Long productId, String productNameSnap, Long unitPrice) {
+		return new OrderProduct(productId, productNameSnap, unitPrice);
 	}
 	public void initOrder(Order order) {
 		this.order = order;
@@ -89,7 +88,7 @@ public class OrderProduct extends BaseTimeEntity{
 	}
 
 
-	public static List<OrderProduct> createFromCartItem(CartItem cartItem, long orderQty, Long couponId) {
+	public static List<OrderProduct> createFromCartItem(CartItem cartItem, long orderQty) {
 
 		if (orderQty <= 0) {
 			throw new IllegalArgumentException("orderQty must be positive");
@@ -98,9 +97,7 @@ public class OrderProduct extends BaseTimeEntity{
 			.mapToObj(i -> OrderProduct.create(
 				cartItem.getProduct().getId(),
 				cartItem.getProduct().getName(),
-				cartItem.getProduct().getPrice(),
-				// 이것도 포인트처럼 별도의 allocator로 처리하는게 좋다.(일단 쿠폰 정책 없으니까 유지)
-				couponId
+				cartItem.getProduct().getPrice()
 			))
 			.toList();
 	}

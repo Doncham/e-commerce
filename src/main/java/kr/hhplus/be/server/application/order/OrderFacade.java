@@ -13,11 +13,11 @@ public class OrderFacade {
 	private final OrderCommandService orderCommandService;
 	private final OrderQueryService orderQueryService;
 
-	public OrderCreateResponse createOrder(OrderDraftCreateRequest request) {
+	public OrderCreateResponse createOrUpdateOrder(OrderDraftCreateRequest request) {
 		try{
-			return orderCommandService.createOrder(request);
+			return orderCommandService.createOrUpdateOrder(request);
 		} catch (DataIntegrityViolationException e) {
-			return orderQueryService.findByUserIdAndKey(request.getUserId(), request.getIdempotencyKey());
+			return orderQueryService.findByUserIdAndKey(request.getUserId(), request.getCheckoutId());
 		}
 	}
 }

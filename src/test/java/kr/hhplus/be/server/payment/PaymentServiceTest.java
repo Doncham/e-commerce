@@ -63,11 +63,11 @@ class PaymentServiceTest {
 	private Order makeCreatedOrder(Long orderId, String idemKey) {
 		User user = mock(User.class);
 
-		OrderProduct p1 = OrderProduct.create(1L, "신발", 1000L,null); // 2000
-		OrderProduct p2 = OrderProduct.create(2L, "모자", 500L, null);  // 500
+		OrderProduct p1 = OrderProduct.create(1L, "신발", 1000L); // 2000
+		OrderProduct p2 = OrderProduct.create(2L, "모자", 500L);  // 500
 
-		Order order = Order.createDraft(user, shippingInfo, idemKey);
-		order.completeOrderDraft(List.of(p1, p2), 0L, "memo", 0L);
+		Order order = Order.createDraft(user, idemKey);
+		order.updateOrderDraft(List.of(p1, p2), "memo", shippingInfo);
 
 		ReflectionTestUtils.setField(order, "id", orderId);
 		return order;
@@ -82,7 +82,7 @@ class PaymentServiceTest {
 
 		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
-		Payment saved = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment saved = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(saved, "id", 10L);
 
 		when(paymentRepository.save(any(Payment.class))).thenReturn(saved);
@@ -92,7 +92,7 @@ class PaymentServiceTest {
 
 		// then
 		assertEquals(10L, attempt.getPaymentId());
-		assertEquals(order.getPayAmount(), attempt.getAmount());
+		assertEquals(order.getPaymentAmount(), attempt.getAmount());
 		assertEquals("orderId:" + orderId, attempt.getIdempotencyKey());
 
 		verify(orderRepository).findByIdForUpdate(orderId);
@@ -124,7 +124,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
@@ -136,7 +136,7 @@ class PaymentServiceTest {
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-1",
 			PaymentGatewayStatus.SUCCESS,
-			order.getPayAmount(),
+			order.getPaymentAmount(),
 			null,
 			null
 		);
@@ -147,7 +147,7 @@ class PaymentServiceTest {
 		// then
 		assertEquals(OrderStatus.PAID, order.getStatus());
 		assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
-		assertEquals("tx-1", payment.getPgTransactionId());
+		assertEquals("tx-1", payment.getPgOrderId());
 
 		verify(reservationProcessor).confirm(order);
 		verify(reservationProcessor, never()).release(any(Order.class), anyString());
@@ -165,7 +165,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
@@ -174,7 +174,7 @@ class PaymentServiceTest {
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-1",
 			PaymentGatewayStatus.FAILURE,
-			order.getPayAmount(),
+			order.getPaymentAmount(),
 			null,
 			null
 		);
@@ -203,7 +203,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 
@@ -242,7 +242,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
@@ -277,7 +277,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		payment.paymentSuccess("tx-existing", LocalDateTime.now());
@@ -289,7 +289,7 @@ class PaymentServiceTest {
 		PaymentGatewayResponse pgResp = PaymentGatewayResponse.of(
 			"tx-new",
 			PaymentGatewayStatus.SUCCESS,
-			order.getPayAmount(),
+			order.getPaymentAmount(),
 			null,
 			null
 		);
@@ -300,7 +300,7 @@ class PaymentServiceTest {
 		// then
 		assertEquals(OrderStatus.PAID, order.getStatus());
 		assertEquals(PaymentStatus.SUCCESS, payment.getStatus());
-		assertEquals("tx-existing", payment.getPgTransactionId());
+		assertEquals("tx-existing", payment.getPgOrderId());
 
 		verify(reservationProcessor, never()).confirm(any(Order.class));
 		verify(reservationProcessor, never()).release(any(Order.class), anyString());

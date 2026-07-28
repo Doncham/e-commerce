@@ -30,7 +30,6 @@ import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.ShippingInfo;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.payment.Payment;
-import kr.hhplus.be.server.domain.payment.dto.PaymentCancelJob;
 import kr.hhplus.be.server.domain.paymentcancel.PaymentCancel;
 import kr.hhplus.be.server.domain.paymentcancel.PaymentCancelFailurePhase;
 import kr.hhplus.be.server.domain.paymentcancel.PaymentCancelStatus;
@@ -254,7 +253,7 @@ class PaymentServiceIntegrationTest {
 
 		order = fixturePersist.saveAndFlush(orderRepo, order);
 
-		Payment payment = TestFixture.successPayment(order, order.getPayAmount());
+		Payment payment = TestFixture.successPayment(order, order.getPaymentAmount());
 
 		// 취소 가능 상태를 맞추기 위해 주문도 paid 처리
 		order.paid();

@@ -70,7 +70,7 @@ public class PaymentTestFixtureBuilder {
 		order.paid();
 		orderRepo.flush(); // 같은 Tx 안 managed 상태 변경을 명시적으로 flush
 
-		Payment payment = TestFixture.successPayment(order, order.getPayAmount());
+		Payment payment = TestFixture.successPayment(order, order.getPaymentAmount());
 		payment = paymentRepo.saveAndFlush(payment);
 
 		List<Long> orderProductIds = orderProductRepo.findByOrderId(order.getId()).stream()

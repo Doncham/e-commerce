@@ -51,11 +51,11 @@ class PaymentOutboxPublisherTest {
 	private Order makeCreatedOrder(Long orderId, String idemKey) {
 		User user = mock(User.class);
 
-		OrderProduct p1 = OrderProduct.create(1L, "신발", 1000L, null); // 2000
-		OrderProduct p2 = OrderProduct.create(2L, "모자", 500L, null);  // 500
+		OrderProduct p1 = OrderProduct.create(1L, "신발", 1000L); // 2000
+		OrderProduct p2 = OrderProduct.create(2L, "모자", 500L);  // 500
 
-		Order order = Order.createDraft(user, shippingInfo, idemKey);
-		order.completeOrderDraft(List.of(p1, p2), 0L, "memo", 0L);
+		Order order = Order.createDraft(user, idemKey);
+		order.updateOrderDraft(List.of(p1, p2), "memo", shippingInfo);
 
 		ReflectionTestUtils.setField(order, "id", orderId);
 		return order;

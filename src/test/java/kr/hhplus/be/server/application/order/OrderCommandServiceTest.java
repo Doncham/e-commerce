@@ -21,7 +21,6 @@ import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cart.Cart;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
 import kr.hhplus.be.server.domain.inventory.Inventory;
-import kr.hhplus.be.server.domain.inventory.exception.InSufficientStockException;
 import kr.hhplus.be.server.domain.product.Product;
 import kr.hhplus.be.server.domain.user.User;
 import kr.hhplus.be.server.infrastructure.persistence.address.AddressRepository;
@@ -106,7 +105,7 @@ class OrderCommandServiceTest {
 				ready.countDown();
 				await(start);
 				try {
-					orderCommandService.createOrder(requests.get(idx));
+					orderCommandService.createOrUpdateOrder(requests.get(idx));
 					success.incrementAndGet();
 				} catch (Throwable e) {
 					errors.add(e);

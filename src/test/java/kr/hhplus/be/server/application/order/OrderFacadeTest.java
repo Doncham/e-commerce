@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
@@ -35,7 +34,6 @@ import kr.hhplus.be.server.infrastructure.persistence.cart.CartRepository;
 import kr.hhplus.be.server.infrastructure.persistence.cartItem.CartItemRepository;
 import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
 import kr.hhplus.be.server.infrastructure.persistence.order.OrderRepository;
-import kr.hhplus.be.server.infrastructure.persistence.orderproduct.OrderProductRepository;
 import kr.hhplus.be.server.infrastructure.persistence.point.PointRepository;
 import kr.hhplus.be.server.infrastructure.persistence.product.ProductRepository;
 import kr.hhplus.be.server.infrastructure.persistence.user.UserRepository;
@@ -119,7 +117,7 @@ class OrderFacadeTest {
 		Point point = pointRepository.findByUserId(u.getId()).get();
 		Long reserved = point.getReserved();
 		Inventory inventoryAfterOrder = inventoryRepository.findByProductId(p.getId()).get();
-		Order order = orderRepository.findByUserIdAndIdempotencyKey(u.getId(), orderRequest.getIdempotencyKey()).get();
+		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getCheckoutId()).get();
 		Assertions.assertEquals(OrderStatus.CREATED, order.getStatus());
 		Assertions.assertEquals(3000L, reserved);
 		Assertions.assertEquals(inventoryAfterOrder.getReserved(), 2L);

@@ -2,7 +2,6 @@ package kr.hhplus.be.server.api.order.response;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.OrderStatus;
@@ -47,7 +46,7 @@ public class OrderCreateResponse {
 			.address(order.getShippingAddress().getAddress())
 			.memo(order.getMemo())
 			.itemTotal(order.getItemTotal())
-			.payAmount(order.getPayAmount())
+			.payAmount(order.getPaymentAmount())
 			.createdAt(order.getCreatedAt())
 			.items(order.getOrderProducts().stream()
 				.map(OrderProductResponse::from)

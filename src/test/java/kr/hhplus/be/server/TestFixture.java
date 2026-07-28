@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
-import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
+import kr.hhplus.be.server.api.order.request.OrderDraftItemRequest;
 import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cart.Cart;
@@ -131,8 +131,7 @@ public final class TestFixture {
 		return OrderProduct.create(
 			product.getId(),            // 주의: product가 아직 저장 전이면 id=null
 			product.getName(),
-			product.getPrice(),
-			null
+			product.getPrice()
 		);
 	}
 
@@ -141,20 +140,20 @@ public final class TestFixture {
 	 * 통합테스트에서는 보통 Product를 먼저 저장 후 그 id를 넣는게 맞다.
 	 */
 	public static OrderProduct orderProduct(Long productId, String productNameSnap, Long unitPrice) {
-		return OrderProduct.create(productId, productNameSnap, unitPrice, null);
+		return OrderProduct.create(productId, productNameSnap, unitPrice);
 	}
 
 	public static OrderProduct orderProduct(Long productId, String productNameSnap, Long unitPrice, Long couponId) {
-		return OrderProduct.create(productId, productNameSnap, unitPrice, couponId);
+		return OrderProduct.create(productId, productNameSnap, unitPrice);
 	}
 
 	// ===== Order =====
 	public static Order draftOrder(User user, ShippingInfo shippingInfo) {
-		return Order.createDraft(user, shippingInfo, idemKey());
+		return Order.createDraft(user, idemKey());
 	}
 
 	public static Order draftOrder(User user, ShippingInfo shippingInfo, String idemKey) {
-		return Order.createDraft(user, shippingInfo, idemKey);
+		return Order.createDraft(user, idemKey);
 	}
 
 	public static Order createdOrder(
@@ -166,18 +165,17 @@ public final class TestFixture {
 		String memo,
 		Long pointUsed
 	) {
-		Order order = Order.createDraft(user, shippingInfo, orderIdemKey);
-		order.completeOrderDraft(items, couponDiscount, memo, pointUsed);
+		Order order = Order.createDraft(user, orderIdemKey);
+		order.updateOrderDraft(items, memo, shippingInfo);
 		return order;
 	}
-	public static OrderDraftCreateRequest.OrderDraftItemRequest orderDraftItemRequest(
+	public static OrderDraftItemRequest orderDraftItemRequest(
 		Long cartItemId,
 		Long couponId,
 		Long orderQty
 	) {
-		return OrderDraftCreateRequest.OrderDraftItemRequest.builder()
+		return OrderDraftItemRequest.builder()
 			.cartItemId(cartItemId)
-			.userCouponId(couponId)
 			.orderQty(orderQty)
 			.build();
 	}
