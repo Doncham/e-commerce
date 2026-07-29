@@ -17,5 +17,5 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 	@Query("SELECT o FROM Order o WHERE o.id = :id")
 	Optional<Order> findByIdForUpdate(@Param("id") Long id);
 
-	Optional<Order> findByUserIdAndIdempotencyKey(Long id, String idempotencyKey);
+	Optional<Order> findByUserIdAndCheckoutId(Long id, String checkoutId);
 }

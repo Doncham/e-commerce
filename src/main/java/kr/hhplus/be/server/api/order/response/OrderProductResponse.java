@@ -10,32 +10,21 @@ public class OrderProductResponse {
 	private final Long productId;
 	private final String productName;
 	private final Long unitPrice;
-	private final Long appliedCouponId;
-	private final Long allocatedCouponDiscount;
-	private final Long allocatedPointUsed;
-	private final Long netPaidAmount;
+
 	@Builder
-	public OrderProductResponse(Long orderProductId, Long productId, String productName, Long unitPrice, Long appliedCouponId,
-		Long allocatedCouponDiscount, Long allocatedPointUsed, Long netPaidAmount) {
+	public OrderProductResponse(Long orderProductId, Long productId,
+		String productName, Long unitPrice) {
 		this.orderProductId = orderProductId;
 		this.productId = productId;
 		this.productName = productName;
 		this.unitPrice = unitPrice;
-		this.appliedCouponId = appliedCouponId;
-		this.allocatedCouponDiscount = allocatedCouponDiscount;
-		this.allocatedPointUsed = allocatedPointUsed;
-		this.netPaidAmount = netPaidAmount;
 	}
-	public static OrderProductResponse from(OrderProduct op){
+	public static OrderProductResponse from(OrderProduct op) {
 		return OrderProductResponse.builder()
 			.orderProductId(op.getId())
 			.productId(op.getProductId())
 			.productName(op.getProductNameSnap())
-			.appliedCouponId(op.getAppliedCouponId())
 			.unitPrice(op.getUnitPrice())
-			.allocatedCouponDiscount(op.getAllocatedCouponDiscount())
-			.allocatedPointUsed(op.getAllocatedPointUsed())
-			.netPaidAmount(op.getCancelableAmount())
 			.build();
 	}
 }

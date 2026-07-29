@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
 import kr.hhplus.be.server.api.order.request.OrderDraftItemRequest;
-import kr.hhplus.be.server.api.order.response.OrderCreateResponse;
+import kr.hhplus.be.server.api.order.response.OrderDraftResponse;
 import kr.hhplus.be.server.domain.address.Address;
 import kr.hhplus.be.server.domain.cartItem.CartItem;
 import kr.hhplus.be.server.domain.inventory.Inventory;
@@ -53,7 +53,7 @@ public class OrderCommandService implements OrderUseCase {
 
 	@Transactional
 	@Override
-	public OrderCreateResponse createOrUpdateOrder(OrderDraftCreateRequest request) {
+	public OrderDraftResponse createOrUpdateOrder(OrderDraftCreateRequest request) {
 		// JWT 대체 예정
 		Long userId = request.getUserId();
 
@@ -78,7 +78,7 @@ public class OrderCommandService implements OrderUseCase {
 			order.updateOrderDraft(orderProducts, request.getMemo(), shippingInfo);
 
 			// 응답 반환
-			return OrderCreateResponse.from(order);
+			return OrderDraftResponse.from(order);
 		}
 		// 없으면 새로 만들기
 		// 여기서 Unique 예외 시 어떤 응답을 사용자에게 줄 건가요?
@@ -120,7 +120,7 @@ public class OrderCommandService implements OrderUseCase {
 		// PointAllocator.allocatePoints(orderProducts, pointUseAmount);
 
 		orderDraft.updateOrderDraft(orderProducts, request.getMemo(), shippingInfo);
-		return OrderCreateResponse.from(orderDraft);
+		return OrderDraftResponse.from(orderDraft);
 	}
 
 	private List<CartItem> getVerifiedCartItems(OrderDraftCreateRequest request, Long userId) {

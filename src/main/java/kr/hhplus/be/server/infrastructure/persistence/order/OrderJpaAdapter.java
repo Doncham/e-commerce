@@ -28,7 +28,7 @@ public class OrderJpaAdapter implements OrderRepository {
 
 	@Override
 	public Optional<Order> findByUserIdAndIdempotencyKey(Long userId, String idempotencyKey) {
-		return orderRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey);
+		return orderRepository.findByUserIdAndCheckoutId(userId, idempotencyKey);
 	}
 
 	@Override

@@ -9,7 +9,7 @@ import lombok.Builder;
 import lombok.Getter;
 
 @Getter
-public class OrderCreateResponse {
+public class OrderDraftResponse {
 	private final Long orderId;
 	private final OrderStatus orderStatus;
 	// addressId가 왜 필요함 주소를 반환해줘야지 ㅋㅋㅋ
@@ -17,43 +17,36 @@ public class OrderCreateResponse {
 	private final String memo;
 	// 쿠폰 적용 전 원래값
 	private final Long itemTotal;
-	private final Long couponDiscount;
-	private final Long pointUsedTotal;
-	private final Long payAmount;
+	private final Long paymentAmount;
 	private final List<OrderProductResponse> items;
 	private final LocalDateTime createdAt;
 
 	@Builder
-	public OrderCreateResponse(Long orderId, OrderStatus orderStatus, String address, String memo, Long itemTotal,
-		Long couponDiscount, Long pointUsedTotal,
-		Long payAmount, List<OrderProductResponse> items, LocalDateTime createdAt) {
+	public OrderDraftResponse(Long orderId, OrderStatus orderStatus, String address, String memo, Long itemTotal,
+		Long paymentAmount, List<OrderProductResponse> items, LocalDateTime createdAt) {
 		this.orderId = orderId;
 		this.orderStatus = orderStatus;
 		this.address = address;
 		this.memo = memo;
 		this.itemTotal = itemTotal;
-		this.couponDiscount = couponDiscount;
-		this.pointUsedTotal = pointUsedTotal;
-		this.payAmount = payAmount;
+		this.paymentAmount = paymentAmount;
 		this.items = items;
 		this.createdAt = createdAt;
 	}
 
-	public static OrderCreateResponse from(Order order){
-		return OrderCreateResponse.builder()
+	public static OrderDraftResponse from(Order order){
+		return OrderDraftResponse.builder()
 			.orderId(order.getId())
 			.orderStatus(order.getStatus())
 			.address(order.getShippingAddress().getAddress())
 			.memo(order.getMemo())
 			.itemTotal(order.getItemTotal())
-			.payAmount(order.getPaymentAmount())
+			.paymentAmount(order.getPaymentAmount())
 			.createdAt(order.getCreatedAt())
 			.items(order.getOrderProducts().stream()
 				.map(OrderProductResponse::from)
 				.toList()
 			)
-			.couponDiscount(order.getCouponDiscountTotal())
-			.pointUsedTotal(order.getPointUsedTotal())
 			.build();
 	}
 }

@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import kr.hhplus.be.server.api.order.request.OrderDraftCreateRequest;
-import kr.hhplus.be.server.api.order.response.OrderCreateResponse;
+import kr.hhplus.be.server.api.order.response.OrderDraftResponse;
 import kr.hhplus.be.server.application.order.OrderFacade;
 import lombok.RequiredArgsConstructor;
 
@@ -17,8 +17,8 @@ import lombok.RequiredArgsConstructor;
 public class OrderController {
 	private final OrderFacade orderFacade;
 	@PutMapping("/create")
-	public ResponseEntity<OrderCreateResponse> createOrUpdateOrder(@RequestBody OrderDraftCreateRequest request) {
-		OrderCreateResponse response = orderFacade.createOrUpdateOrder(request);
+	public ResponseEntity<OrderDraftResponse> createOrUpdateOrder(@RequestBody OrderDraftCreateRequest request) {
+		OrderDraftResponse response = orderFacade.createOrUpdateOrder(request);
 		return ResponseEntity.ok(response);
 	}
 }
