@@ -34,7 +34,7 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 		select i
 		from Inventory i
 		where i.id in (:invIds)
-		order by i.id
+		order by i.id asc
 	""")
 	List<Inventory> findByIdsForUpdate(@Param("invIds") List<Long> invIds);
 

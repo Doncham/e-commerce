@@ -27,15 +27,24 @@ public class Inventory extends BaseTimeEntity {
 	// unique 제약 조건 설정
 	@JoinColumn(name = "product_id", nullable = false, unique = true)
 	private Product product;
+
 	@Column(nullable = false)
-	private Long stock;
+	private long stock;
+
 	@Column(nullable = false)
-	private Long reserved;
+	private long reserved;
+
 	@Column(name = "deleted_at")
 	private LocalDateTime deletedAt;
 
 
 	private Inventory(Product product, Long stock) {
+		if (stock < 0) {
+			throw new IllegalArgumentException(
+				"Initial stock cannot be negative."
+			);
+		}
+
 		this.product = product;
 		this.stock = stock;
 		this.reserved = 0L;
@@ -46,22 +55,90 @@ public class Inventory extends BaseTimeEntity {
 	}
 
 	public long availableStock() {
-		return Math.max(stock - reserved, 0);
+		// 아래 코드의 경우 reserved:8 stock:5 처럼 정합성이 깨진 경우가 숨겨질 수 있다.
+		// return Math.max(stock - reserved, 0);
+		validateStockInvariant();
+		return stock - reserved;
 	}
 
 	public void reserveStock(long qty) {
-		this.reserved += qty;
+		validatePositiveQuantity(qty);
+		validateStockInvariant();
+
+		if (availableStock() < qty) {
+			throw new IllegalStateException(
+				"Insufficient stock to reserve. "
+					+ "inventoryId=" + id
+					+ ", available=" + availableStock()
+					+ ", requested=" + qty
+			);
+		}
+
+		reserved += qty;
 	}
 
 	public void releaseReserve(Long qty) {
+		validatePositiveQuantity(qty);
+		validateStockInvariant();
+
+		if (reserved < qty) {
+			throw new IllegalStateException(
+				"Release quantity exceeds reserved quantity. "
+					+ "inventoryId=" + id
+					+ ", reserved=" + reserved
+					+ ", releaseQty=" + qty
+			);
+		}
 		reserved -= qty;
 	}
 
-	public void confirmReserve(Long qty) {
+
+
+	public void confirmReserve(long qty) {
+		validatePositiveQuantity(qty);
+		validateStockInvariant();
+
+		if (reserved < qty) {
+			throw new IllegalStateException(
+				"Confirm quantity exceeds reserved quantity. "
+					+ "inventoryId=" + id
+					+ ", reserved=" + reserved
+					+ ", confirmQty=" + qty
+			);
+		}
+
+		if (stock < qty) {
+			throw new IllegalStateException(
+				"Confirm quantity exceeds stock. "
+					+ "inventoryId=" + id
+					+ ", stock=" + stock
+					+ ", confirmQty=" + qty
+			);
+		}
+
 		reserved -= qty;
 		stock -= qty;
 	}
 	public void restoreOne() {
 		stock++;
+	}
+
+	private void validateStockInvariant() {
+		if (stock < 0 || reserved < 0 || reserved > stock) {
+			throw new IllegalStateException(
+				"Invalid inventory state. "
+					+ "inventoryId=" + id
+					+ ", stock=" + stock
+					+ ", reserved=" + reserved
+			);
+		}
+	}
+
+	private void validatePositiveQuantity(long qty) {
+		if (qty <= 0) {
+			throw new IllegalArgumentException(
+				"Quantity must be positive. qty=" + qty
+			);
+		}
 	}
 }

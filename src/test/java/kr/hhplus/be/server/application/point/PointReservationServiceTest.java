@@ -167,7 +167,7 @@ class PointReservationServiceTest {
 		when(order.getPointUsedTotal()).thenReturn(0L);
 
 		// when
-		pointReservationService.release(order, "PAYMENT_FAILED");
+		pointReservationService.releaseAll(order, "PAYMENT_FAILED");
 
 		// then
 		verifyNoInteractions(pointReservationRepo, pointRepo);
@@ -191,7 +191,7 @@ class PointReservationServiceTest {
 		when(pointRepo.findByUserIdForUpdate(userId)).thenReturn(Optional.of(point));
 
 		// when
-		pointReservationService.release(order, "PAYMENT_FAILED");
+		pointReservationService.releaseAll(order, "PAYMENT_FAILED");
 
 		// then
 		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
@@ -211,7 +211,7 @@ class PointReservationServiceTest {
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.RELEASED);
 
 		// when
-		pointReservationService.release(order, "PAYMENT_FAILED");
+		pointReservationService.releaseAll(order, "PAYMENT_FAILED");
 
 		// then
 		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
@@ -230,7 +230,7 @@ class PointReservationServiceTest {
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.CONFIRMED);
 
 		// when & then
-		assertThrows(IllegalArgumentException.class, () -> pointReservationService.release(order, "PAYMENT_FAILED"));
+		assertThrows(IllegalArgumentException.class, () -> pointReservationService.releaseAll(order, "PAYMENT_FAILED"));
 
 		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verifyNoInteractions(pointRepo);

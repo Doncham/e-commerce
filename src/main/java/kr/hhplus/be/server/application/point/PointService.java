@@ -69,7 +69,7 @@ public class PointService {
 
 		PointCharge pc = pointChargeRepository.findById(pointChargeId)
 			.orElseThrow(
-				() -> new PointChargeNotFoundException(ErrorCode.NOT_FOUND_POINT_CHARGE, userId, idempotencyKey));
+				() -> new PointChargeNotFoundException(ErrorCode.POINT_CHARGE_NOT_FOUND, userId, idempotencyKey));
 
 		// 이미 처리된 PointCharge 라면 멱등 처리
 		if(pc.isSuccess() || pc.isFailed()) {

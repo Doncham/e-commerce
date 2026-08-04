@@ -16,7 +16,7 @@ public class PointQueryService {
 	public PointChargeResponse findChargeResult(long userId, String idempotencyKey) {
 		PointCharge pc = pointChargeRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
 			.orElseThrow(
-				() -> new PointChargeNotFoundException(ErrorCode.NOT_FOUND_POINT_CHARGE, userId, idempotencyKey));
+				() -> new PointChargeNotFoundException(ErrorCode.POINT_CHARGE_NOT_FOUND, userId, idempotencyKey));
 
 		return PointChargeResponse.of(pc);
 	}

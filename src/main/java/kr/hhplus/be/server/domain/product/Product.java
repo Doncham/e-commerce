@@ -39,4 +39,8 @@ public class Product extends BaseTimeEntity {
 	public static Product createProduct(String name, String description, Long price) {
 		return new Product(name, description, price);
 	}
+
+	public boolean isOrderable() {
+		return isActive;
+	}
 }

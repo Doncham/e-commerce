@@ -44,7 +44,7 @@ public class UserCouponService {
 		Long couponId = request.getCouponId();
 		// 분산락을 사용해도 최종 정합성은 DB에서 관리한다.(DB락)
 		Coupon coupon = couponRepository.findByIdForUpdate(couponId)
-			.orElseThrow(() -> new NotFoundCoupon(ErrorCode.NOT_FOUND_COUPON, couponId));
+			.orElseThrow(() -> new NotFoundCoupon(ErrorCode.COUPON_NOT_FOUND, couponId));
 		Long issuedCountForThisUser = userCouponRepository.countAllByUserIdAndCouponId(userId, couponId);
 		// 사용자당 발급 제한 수 초과
 		if(issuedCountForThisUser >= coupon.getIssueLimitPerUser()){
@@ -52,7 +52,7 @@ public class UserCouponService {
 		}
 		// 쿠폰 만료 여부
 		if (coupon.isExpired()) {
-			throw new CouponExpiredException(ErrorCode.EXPIRED_COUPON, couponId);
+			throw new CouponExpiredException(ErrorCode.COUPON_EXPIRED, couponId);
 		}
 		// 쿠폰 재고 수량 체크 및 발급 수 증가
 		if(coupon.hasStock()){

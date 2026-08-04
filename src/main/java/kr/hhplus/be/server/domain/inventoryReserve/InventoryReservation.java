@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(
 	uniqueConstraints = @UniqueConstraint(
-		name = "ux_orderId_and_productId",
+		name = "ux_inventory_reservation_order_inventory",
 		columnNames = {"order_id", "inventory_id"}
 	)
 )
@@ -27,16 +27,25 @@ public class InventoryReservation extends BaseTimeEntity {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
+
 	@Column(name = "order_id", nullable = false)
 	private Long orderId;
+
 	@Column(name = "inventory_id", nullable = false)
 	private Long inventoryId;
+
+	@Column(nullable = false)
 	private Long qty;
+
 	@Enumerated(EnumType.STRING)
 	private InventoryReserveStatus status;
-	private String failReason;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "release_reason")
+	private InventoryReservationReleaseReason releaseReason;
 
 	private InventoryReservation(Long orderId, Long inventoryId, Long qty, InventoryReserveStatus status) {
+		validatePositiveQuantity(qty);
 		this.orderId = orderId;
 		this.inventoryId = inventoryId;
 		this.qty = qty;
@@ -52,23 +61,53 @@ public class InventoryReservation extends BaseTimeEntity {
 		);
 	}
 
-	public void release(String failReason) {
-		if (this.status == InventoryReserveStatus.RELEASED) return;
+	public boolean release(InventoryReservationReleaseReason failReason) {
+		if (this.status == InventoryReserveStatus.RELEASED) return false;
 		// CONFIRMED는 release 금지
 		if (this.status == InventoryReserveStatus.CONFIRMED) {
 			throw new IllegalStateException("Cannot release a confirmed reservation. orderId=" + orderId + ", inventoryId=" + inventoryId);
 		}
-		this.failReason = failReason;
+		this.releaseReason = failReason;
 		this.status = InventoryReserveStatus.RELEASED;
+		return true;
 	}
 
-	public void confirm() {
-		if(this.status == InventoryReserveStatus.CONFIRMED) return;
+	public boolean confirm() {
+		if(this.status == InventoryReserveStatus.CONFIRMED) return false;
 
 		if(this.status == InventoryReserveStatus.RELEASED) {
-			throw new IllegalArgumentException("Cannot confirm a released reservation. orderId=" + orderId + ", inventoryId=" + inventoryId);
+			throw new IllegalStateException("Cannot confirm a released reservation. orderId=" + orderId + ", inventoryId=" + inventoryId);
 		}
 
 		this.status = InventoryReserveStatus.CONFIRMED;
+		return true;
+	}
+
+	public void reserveAgain(long qty) {
+		validatePositiveQuantity(qty);
+
+		if (status
+			== InventoryReserveStatus.CONFIRMED) {
+			throw new IllegalStateException(
+				"Cannot reactivate confirmed reservation. "
+					+ "orderId=" + orderId
+					+ ", inventoryId=" + inventoryId
+			);
+		}
+
+		this.qty = qty;
+		this.status = InventoryReserveStatus.RESERVED;
+		this.releaseReason = null;
+	}
+
+	private static void validatePositiveQuantity(
+		long qty
+	) {
+		if (qty <= 0) {
+			throw new IllegalArgumentException(
+				"Reservation quantity must be positive. "
+					+ "qty=" + qty
+			);
+		}
 	}
 }

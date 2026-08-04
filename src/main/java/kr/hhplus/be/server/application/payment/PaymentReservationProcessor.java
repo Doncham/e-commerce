@@ -4,6 +4,7 @@ import org.springframework.stereotype.Service;
 
 import kr.hhplus.be.server.application.inventory.InventoryReservationService;
 import kr.hhplus.be.server.application.point.PointReservationService;
+import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservationReleaseReason;
 import kr.hhplus.be.server.domain.order.Order;
 import lombok.RequiredArgsConstructor;
 
@@ -18,8 +19,8 @@ public class PaymentReservationProcessor {
 		inventoryHandler.confirm(order);
 	}
 
-	public void release(Order order, String reason) {
-		pointHandler.release(order, reason);
-		inventoryHandler.release(order, reason);
+	public void release(Order order, InventoryReservationReleaseReason reason) {
+		pointHandler.releaseAll(order, reason);
+		inventoryHandler.releaseAll(order.getId(), reason);
 	}
 }

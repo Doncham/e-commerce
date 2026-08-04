@@ -2,11 +2,13 @@ package kr.hhplus.be.server.application.exception;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.ErrorResponse;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import jakarta.servlet.http.HttpServletRequest;
 import kr.hhplus.be.server.domain.usercoupon.exception.CouponIssueBusyException;
+import kr.hhplus.be.server.exception.BusinessException;
 import kr.hhplus.be.server.exception.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 
@@ -40,9 +42,47 @@ public class GlobalExceptionHandler {
 		);
 
 		return ResponseEntity.internalServerError()
-			.body(new ErrorResponse("INTERNAL_SERVER_ERROR"));
+			.body(new ErrorResponse("INTERNAL_SERVER_ERROR", "서버 오류가 발생했습니다."));
 	}
 
-	public record ErrorResponse(String code) {
+	public record ErrorResponse(String code, String message) {
+	}
+
+	@ExceptionHandler(BusinessException.class)
+	public ResponseEntity<ErrorResponse>
+	handleBusinessException(
+		BusinessException exception
+	) {
+		ErrorCode errorCode =
+			exception.getErrorCode();
+
+		log.warn(
+			"Business error. code={}, detail={}",
+			errorCode.getCode(),
+			exception.getMessage()
+		);
+
+		return ResponseEntity
+			.status(errorCode.getStatus())
+			.body(
+				new ErrorResponse(
+					errorCode.getCode(),
+					errorCode.getMessage()
+				)
+			);
+	}
+
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+	public ResponseEntity<ErrorResponse> handleValidationException(
+		MethodArgumentNotValidException exception
+	) {
+		return ResponseEntity
+			.badRequest()
+			.body(
+				new ErrorResponse(
+					"COMMON_400",
+					"요청 값이 올바르지 않습니다."
+				)
+			);
 	}
 }

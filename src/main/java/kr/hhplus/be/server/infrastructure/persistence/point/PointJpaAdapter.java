@@ -16,6 +16,6 @@ public class PointJpaAdapter implements PointPort {
 	@Override
 	public Point findByUserIdForUpdate(Long userId) {
 		return pointRepository.findByUserIdForUpdate(userId)
-			.orElseThrow(() -> new PointNotFoundException(ErrorCode.NOT_FOUND_POINT, userId));
+			.orElseThrow(() -> new PointNotFoundException(ErrorCode.POINT_NOT_FOUND, userId));
 	}
 }

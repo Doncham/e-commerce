@@ -35,7 +35,10 @@ import lombok.NoArgsConstructor;
 	name = "orders",
 	uniqueConstraints = @UniqueConstraint(
 		name = "ux_userid_and_checkoutid",
-		columnNames = {"user_id", "checkout_id"}
+		columnNames = {
+			"user_id",
+			"checkout_id"
+		}
 	),
 	indexes = {
 		@Index(name = "ix_orders_created_at", columnList = "created_at")
@@ -219,4 +222,15 @@ public class Order extends BaseTimeEntity {
 		return this.status == OrderStatus.DRAFT;
 	}
 
+	public boolean isDraft() {
+		return this.status.equals(OrderStatus.DRAFT);
+	}
+
+	public void reopenDraft() {
+		// 이거 그냥 바꾸면 되나? FAILED나 SUCCESS 같은 상태면 안됨
+		// PAYMENT_PENDING 이면서 payment의 상태도 READY인 경우만 허용
+		if(this.status.equals(OrderStatus.PAYMENT_PENDING)){
+			this.status = OrderStatus.DRAFT;
+		}
+	}
 }

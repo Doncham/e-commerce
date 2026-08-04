@@ -21,7 +21,8 @@ public interface InventoryReserveRepository extends JpaRepository<InventoryReser
    			select ir
 			from InventoryReservation ir
 			where ir.orderId = :orderId 
-			and ir.status = :status
+				and ir.status = :status
+			order by ir.inventoryId asc
 """)
 	List<InventoryReservation> findByOrderIdAndStatusForUpdate(@Param("orderId") Long orderId, @Param("status") InventoryReserveStatus inventoryReserveStatus);
 }

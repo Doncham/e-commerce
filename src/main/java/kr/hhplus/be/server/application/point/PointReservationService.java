@@ -26,31 +26,31 @@ public class PointReservationService {
 		// 포인트 사용 확정(간단 버전)
 		PointReservation pr = pointReservationRepo.findByOrderIdForUpdate(order.getId())
 			.orElseThrow(() ->
-				new PointReservationNotFoundException(ErrorCode.NOT_FOUND_POINT_RESERVATION, order.getId()));
+				new PointReservationNotFoundException(ErrorCode.POINT_RESERVATION_NOT_FOUND, order.getId()));
 		if(pr.getStatus() == PointReserveStatus.CONFIRMED) return;
 		if(pr.getStatus() == PointReserveStatus.RELEASED) {
 			throw new IllegalArgumentException("Reservation already released. orderId = " + order.getId());
 		}
 		Point point = pointRepo.findByUserIdForUpdate(order.getUser().getId())
-			.orElseThrow(() -> new PointNotFoundException(ErrorCode.NOT_FOUND_POINT, order.getUser().getId()));
+			.orElseThrow(() -> new PointNotFoundException(ErrorCode.POINT_NOT_FOUND, order.getUser().getId()));
 
 		pr.confirm();
 		point.confirmUse(pr.getAmount());
 	}
 
-	public void release(Order order, String reason) {
+	public void releaseAll(Order order, String reason) {
 		if (order.getPointUsedTotal() == 0) return;
 
 		PointReservation pr = pointReservationRepo.findByOrderIdForUpdate(order.getId())
 			.orElseThrow(() ->
-				new PointReservationNotFoundException(ErrorCode.NOT_FOUND_POINT_RESERVATION, order.getId()));
+				new PointReservationNotFoundException(ErrorCode.POINT_RESERVATION_NOT_FOUND, order.getId()));
 		if(pr.getStatus() == PointReserveStatus.RELEASED) return;
 		if(pr.getStatus() == PointReserveStatus.CONFIRMED) {
 			throw new IllegalArgumentException("Reservation already confirmed. orderId = " + order.getId());
 		}
 
 		Point point = pointRepo.findByUserIdForUpdate(order.getUser().getId())
-			.orElseThrow(() -> new PointNotFoundException(ErrorCode.NOT_FOUND_POINT, order.getUser().getId()));
+			.orElseThrow(() -> new PointNotFoundException(ErrorCode.POINT_NOT_FOUND, order.getUser().getId()));
 
 		pr.release(reason);
 		point.releaseReserve(pr.getAmount());

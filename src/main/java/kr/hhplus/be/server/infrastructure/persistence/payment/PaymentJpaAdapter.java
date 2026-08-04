@@ -36,7 +36,7 @@ public class PaymentJpaAdapter implements PaymentRepository {
 	public Payment loadForUpdate(Long paymentId) {
 		return paymentRepository.findByIdForUpdate(paymentId)
 			.orElseThrow(() ->
-				new PaymentNotFoundException(ErrorCode.NOT_FOUND_PAYMENT, paymentId));
+				new PaymentNotFoundException(ErrorCode.PAYMENT_NOT_FOUND, paymentId));
 	}
 
 	@Override

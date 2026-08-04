@@ -18,7 +18,7 @@ public class OrderJpaAdapter implements OrderRepository {
 	@Override
 	public Order loadOrderForUpdate(Long orderId) {
 		return orderRepository.findByIdForUpdate(orderId)
-			.orElseThrow(() -> new OrderNotFoundException(ErrorCode.NOT_FOUND_ORDER, orderId));
+			.orElseThrow(() -> new OrderNotFoundException(ErrorCode.ORDER_NOT_FOUND, orderId));
 	}
 
 	@Override
