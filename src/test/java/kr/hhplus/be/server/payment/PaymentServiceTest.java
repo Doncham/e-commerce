@@ -184,7 +184,7 @@ class PaymentServiceTest {
 
 		// then
 		assertEquals(OrderStatus.FAILED, order.getStatus());
-		assertEquals(PaymentStatus.FAILURE, payment.getStatus());
+		assertEquals(PaymentStatus.FAILED, payment.getStatus());
 //		assertEquals("tx-1", response.getTransactionId());
 
 		verify(reservationProcessor).release(order, "PG_FAILED");
@@ -193,7 +193,7 @@ class PaymentServiceTest {
 		verify(outboxPublisher, never()).publishPaymentSuccess(any(Order.class), anyString(), any(LocalDateTime.class));
 
 		assertEquals(orderId, response.getOrderId());
-		assertEquals(PaymentStatus.FAILURE, response.getStatus());
+		assertEquals(PaymentStatus.FAILED, response.getStatus());
 	}
 
 	@Test
@@ -223,7 +223,7 @@ class PaymentServiceTest {
 
 		// then
 		assertEquals(OrderStatus.FAILED, order.getStatus());
-		assertEquals(PaymentStatus.FAILURE, payment.getStatus());
+		assertEquals(PaymentStatus.FAILED, payment.getStatus());
 		//assertEquals("tx-1", response.getTransactionId());
 
 		verify(reservationProcessor).release(order, "PAY_AMOUNT_MISMATCH");
@@ -232,7 +232,7 @@ class PaymentServiceTest {
 		verify(outboxPublisher, never()).publishPaymentSuccess(any(Order.class), anyString(), any(LocalDateTime.class));
 
 		assertEquals(orderId, response.getOrderId());
-		assertEquals(PaymentStatus.FAILURE, response.getStatus());
+		assertEquals(PaymentStatus.FAILED, response.getStatus());
 	}
 
 	@Test
@@ -261,13 +261,13 @@ class PaymentServiceTest {
 
 		// then
 		assertEquals(OrderStatus.FAILED, order.getStatus());
-		assertEquals(PaymentStatus.FAILURE, payment.getStatus());
+		assertEquals(PaymentStatus.FAILED, payment.getStatus());
 
 		verify(reservationProcessor).release(order, "PAY_AMOUNT_MISMATCH");
 		verify(reservationProcessor, never()).confirm(any(Order.class));
 		verify(outboxPublisher, never()).publishPaymentSuccess(any(Order.class), anyString(), any(LocalDateTime.class));
 
-		assertEquals(PaymentStatus.FAILURE, response.getStatus());
+		assertEquals(PaymentStatus.FAILED, response.getStatus());
 	}
 
 	@Test

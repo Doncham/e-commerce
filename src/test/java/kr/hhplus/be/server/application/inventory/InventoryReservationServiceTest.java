@@ -11,9 +11,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import kr.hhplus.be.server.domain.common.ReservationReleaseReason;
 import kr.hhplus.be.server.domain.inventory.Inventory;
 import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservation;
-import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservationReleaseReason;
 import kr.hhplus.be.server.domain.inventoryReserve.InventoryReserveStatus;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
@@ -67,7 +67,7 @@ class InventoryReservationServiceTest {
 
 		when(invRepo.findByIdsForUpdate(List.of(100L))).thenReturn(List.of(inv));
 
-		handler.releaseAll(order.getId(), InventoryReservationReleaseReason.PAYMENT_FAILED);
+		handler.releaseAll(order.getId(), ReservationReleaseReason.PAYMENT_FAILED);
 
 		verify(inv).releaseReserve(2L);
 		assertEquals(InventoryReserveStatus.RELEASED, r1.getStatus());

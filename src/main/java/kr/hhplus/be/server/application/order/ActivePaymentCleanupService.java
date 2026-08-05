@@ -4,7 +4,7 @@ import org.springframework.stereotype.Service;
 
 import kr.hhplus.be.server.application.inventory.InventoryReservationService;
 import kr.hhplus.be.server.application.point.PointReservationService;
-import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservationReleaseReason;
+import kr.hhplus.be.server.domain.common.ReservationReleaseReason;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.payment.Payment;
 import kr.hhplus.be.server.domain.payment.PaymentStatus;
@@ -54,7 +54,7 @@ public class ActivePaymentCleanupService {
 
 		inventoryReservationService.releaseAll(
 			order.getId(),
-			InventoryReservationReleaseReason.ORDER_CHANGED
+			ReservationReleaseReason.ORDER_CHANGED
 		);
 
 		// couponReservationService.releaseAll(
@@ -63,7 +63,7 @@ public class ActivePaymentCleanupService {
 		// );
 
 		pointReservationService.releaseAll(
-			payment.getId(),
+			order,
 			ReservationReleaseReason.ORDER_CHANGED
 		);
 

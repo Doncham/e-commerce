@@ -15,12 +15,7 @@ import kr.hhplus.be.server.domain.user.User;
 import kr.hhplus.be.server.exception.BusinessException;
 import kr.hhplus.be.server.exception.ErrorCode;
 import kr.hhplus.be.server.infrastructure.persistence.address.AddressRepository;
-import kr.hhplus.be.server.infrastructure.persistence.cartItem.CartItemRepository;
-import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
-import kr.hhplus.be.server.infrastructure.persistence.inventoryReserve.InventoryReserveRepository;
 import kr.hhplus.be.server.infrastructure.persistence.order.OrderRepository;
-import kr.hhplus.be.server.infrastructure.persistence.point.PointRepository;
-import kr.hhplus.be.server.infrastructure.persistence.pointReservation.PointReservationRepository;
 import kr.hhplus.be.server.infrastructure.persistence.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 
@@ -30,12 +25,6 @@ public class OrderCommandService implements OrderUseCase {
 	private final OrderRepository orderRepo;
 	private final AddressRepository addressRepo;
 	private final UserRepository userRepo;
-	private final PointRepository pointRepo;
-	private final CartItemRepository cartItemRepo;
-	private final InventoryRepository inventoryRepo;
-
-	private final InventoryReserveRepository inventoryReserveRepo;
-	private final PointReservationRepository pointReservationRepo;
 
 	private final orderDraftItemResolver orderDraftItemResolver;
 	private final ActivePaymentCleanupService activePaymentCleanupService;
@@ -53,8 +42,8 @@ public class OrderCommandService implements OrderUseCase {
 		// order 조회 or 생성
 		// 비관적락으로 조회하긴 하는데 이게 멱등적인건가?
 		// update 로직이라서 논리적으로 같은 요청이면 update 시 결과는 항상 같음
-		// 요청 A와 요청 B가 처음 조회 시 결과 없음을 조회하고 둘 다 총과 가능 -> 유니크 제약 걸림.
-		// Facade에서 잡아서 던져줘야함.
+		// 요청 A와 요청 B가 처음 조회 시 결과 없음을 조회하고 둘 다 createOrderDraft로 order 생성 -> 유니크 제약 걸림.
+		// Facade에서 잡아서 처리.
 		Order order = findOrCreateOrder(
 			userId,
 			request.getCheckoutId()

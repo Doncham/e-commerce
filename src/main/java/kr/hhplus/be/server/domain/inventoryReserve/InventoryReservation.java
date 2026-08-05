@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import kr.hhplus.be.server.domain.common.ReservationReleaseReason;
 import kr.hhplus.be.server.entity.BaseTimeEntity;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -42,7 +43,7 @@ public class InventoryReservation extends BaseTimeEntity {
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "release_reason")
-	private InventoryReservationReleaseReason releaseReason;
+	private ReservationReleaseReason releaseReason;
 
 	private InventoryReservation(Long orderId, Long inventoryId, Long qty, InventoryReserveStatus status) {
 		validatePositiveQuantity(qty);
@@ -61,7 +62,7 @@ public class InventoryReservation extends BaseTimeEntity {
 		);
 	}
 
-	public boolean release(InventoryReservationReleaseReason failReason) {
+	public boolean release(ReservationReleaseReason failReason) {
 		if (this.status == InventoryReserveStatus.RELEASED) return false;
 		// CONFIRMED는 release 금지
 		if (this.status == InventoryReserveStatus.CONFIRMED) {

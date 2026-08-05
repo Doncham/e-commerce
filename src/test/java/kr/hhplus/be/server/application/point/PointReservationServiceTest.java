@@ -11,6 +11,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import kr.hhplus.be.server.domain.common.ReservationReleaseReason;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.point.Point;
 import kr.hhplus.be.server.domain.point.exception.PointNotFoundException;
@@ -167,7 +168,7 @@ class PointReservationServiceTest {
 		when(order.getPointUsedTotal()).thenReturn(0L);
 
 		// when
-		pointReservationService.releaseAll(order, "PAYMENT_FAILED");
+		pointReservationService.releaseAll(order, ReservationReleaseReason.PAYMENT_FAILED);
 
 		// then
 		verifyNoInteractions(pointReservationRepo, pointRepo);
@@ -191,12 +192,12 @@ class PointReservationServiceTest {
 		when(pointRepo.findByUserIdForUpdate(userId)).thenReturn(Optional.of(point));
 
 		// when
-		pointReservationService.releaseAll(order, "PAYMENT_FAILED");
+		pointReservationService.releaseAll(order, ReservationReleaseReason.PAYMENT_FAILED);
 
 		// then
 		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verify(pointRepo).findByUserIdForUpdate(userId);
-		verify(reservation).release("PAYMENT_FAILED");
+		verify(reservation).release(ReservationReleaseReason.PAYMENT_FAILED);
 		verify(point).releaseReserve(reservedAmount);
 	}
 
@@ -211,12 +212,12 @@ class PointReservationServiceTest {
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.RELEASED);
 
 		// when
-		pointReservationService.releaseAll(order, "PAYMENT_FAILED");
+		pointReservationService.releaseAll(order, ReservationReleaseReason.PAYMENT_FAILED);
 
 		// then
 		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verifyNoInteractions(pointRepo);
-		verify(reservation, never()).release(anyString());
+		verify(reservation, never()).release(ReservationReleaseReason.valueOf(anyString()));
 	}
 
 	@Test
@@ -230,10 +231,10 @@ class PointReservationServiceTest {
 		when(reservation.getStatus()).thenReturn(PointReserveStatus.CONFIRMED);
 
 		// when & then
-		assertThrows(IllegalArgumentException.class, () -> pointReservationService.releaseAll(order, "PAYMENT_FAILED"));
+		assertThrows(IllegalArgumentException.class, () -> pointReservationService.releaseAll(order, ReservationReleaseReason.PAYMENT_FAILED));
 
 		verify(pointReservationRepo).findByOrderIdForUpdate(orderId);
 		verifyNoInteractions(pointRepo);
-		verify(reservation, never()).release(anyString());
+		verify(reservation, never()).release(ReservationReleaseReason.valueOf(anyString()));
 	}
 }

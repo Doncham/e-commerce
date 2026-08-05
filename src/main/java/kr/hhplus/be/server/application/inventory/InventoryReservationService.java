@@ -8,9 +8,9 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import kr.hhplus.be.server.domain.common.ReservationReleaseReason;
 import kr.hhplus.be.server.domain.inventory.Inventory;
 import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservation;
-import kr.hhplus.be.server.domain.inventoryReserve.InventoryReservationReleaseReason;
 import kr.hhplus.be.server.domain.inventoryReserve.InventoryReserveStatus;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.infrastructure.persistence.inventory.InventoryRepository;
@@ -43,7 +43,7 @@ public class InventoryReservationService {
 
 	public void releaseAll(
 		long orderId,
-		InventoryReservationReleaseReason reason
+		ReservationReleaseReason reason
 	) {
 		List<InventoryReservation> reserves = invReserveRepo
 				.findByOrderIdAndStatusForUpdate(

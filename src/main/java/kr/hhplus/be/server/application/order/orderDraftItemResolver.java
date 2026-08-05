@@ -46,6 +46,7 @@ public class orderDraftItemResolver {
 			cartItems,
 			requestByCartItemId
 		);
+
 		// 예약하지는 않지만 재고 수량 정도는 확인하는구나
 		validateCurrentInventories(
 			cartItems,
@@ -92,7 +93,6 @@ public class orderDraftItemResolver {
 		List<CartItem> cartItems =
 			cartItemRepository
 				.findAllByIdInWithProductCartUser(
-					// 왜 copyOf를 쓰지?
 					List.copyOf(cartItemIds)
 				);
 
@@ -159,6 +159,7 @@ public class orderDraftItemResolver {
 		CartItem cartItem,
 		OrderDraftItemRequest request
 	) {
+		// 장바구니 중 일부를 주문할 수 있다.
 		if (request.getOrderQty()
 			> cartItem.getQty()) {
 			throw BusinessException.of(
@@ -195,24 +196,13 @@ public class orderDraftItemResolver {
 		List<CartItem> cartItems,
 		Map<Long, OrderDraftItemRequest> requestByCartItemId
 	) {
-		// 와 이거 너무 어렵게 생겼다. group by 이해가 안감.
-		Map<Long, Long> requestedQtyByProductId =
-			cartItems.stream()
-				.collect(Collectors.groupingBy(
-					cartItem ->
-						cartItem.getProduct().getId(),
-					Collectors.summingLong(cartItem ->
-						requestByCartItemId
-							.get(cartItem.getId())
-							.getOrderQty()
-					)
-				));
 
-		List<Long> productIds =
-			requestedQtyByProductId.keySet()
-				.stream()
-				.sorted()
-				.toList();
+		List<Long> productIds = cartItems.stream()
+			.map(cartItem ->
+				cartItem.getProduct().getId()
+			)
+			.sorted()
+			.toList();
 
 		Map<Long, Inventory> inventoryByProductId =
 			inventoryRepository
@@ -224,27 +214,33 @@ public class orderDraftItemResolver {
 					Function.identity()
 				));
 
-		// inventory 재고 비교를 위해 필요한 값  1.Map<productId, 요구한 수량> 2.Map<productId, Inventory>
-		for (Map.Entry<Long, Long> entry
-			: requestedQtyByProductId.entrySet()) {
+		for (CartItem cartItem : cartItems) {
+			Long productId =
+				cartItem.getProduct().getId();
 
-			Long productId = entry.getKey();
-			Long requestedQty = entry.getValue();
+			long orderQty = requestByCartItemId
+				.get(cartItem.getId())
+				.getOrderQty();
 
 			Inventory inventory =
 				inventoryByProductId.get(productId);
 
 			if (inventory == null) {
-				throw new NotFoundInventoryException(
-					productId.toString()
+				throw new IllegalStateException(
+					"Inventory does not exist. productId="
+						+ productId
 				);
 			}
 
 			if (inventory.availableStock()
-				< requestedQty) {
-				throw new InSufficientStockException(
+				< orderQty) {
+				throw BusinessException.of(
 					ErrorCode.STOCK_NOT_SUFFICIENT,
-					productId.toString()
+					"Insufficient stock. "
+						+ "productId=" + productId
+						+ ", orderQty=" + orderQty
+						+ ", availableStock="
+						+ inventory.availableStock()
 				);
 			}
 		}
