@@ -22,7 +22,7 @@ public class OrderFacade {
 				throw e;
 			}
 			// 기존 order 조회해서 업데이트한다.
-			return orderQueryService.findByUserIdAndKey(request.getUserId(), request.getCheckoutId());
+			return orderQueryService.findByUserIdAndKey(request.getUserId(), request.getOrderSessionId());
 		}
 	}
 

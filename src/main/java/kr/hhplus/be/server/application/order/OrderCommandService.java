@@ -27,7 +27,7 @@ public class OrderCommandService implements OrderUseCase {
 	private final UserRepository userRepo;
 
 	private final orderDraftItemResolver orderDraftItemResolver;
-	private final ActivePaymentCleanupService activePaymentCleanupService;
+	private final PaymentPreparationCleanupService paymentPreparationCleanupService;
 
 	@Transactional
 	@Override
@@ -38,7 +38,6 @@ public class OrderCommandService implements OrderUseCase {
 		Long userId = request.getUserId();
 
 		// validateRequest(request); controller에서 받아올 때 검증 진행함.
-
 		// order 조회 or 생성
 		// 비관적락으로 조회하긴 하는데 이게 멱등적인건가?
 		// update 로직이라서 논리적으로 같은 요청이면 update 시 결과는 항상 같음
@@ -46,7 +45,7 @@ public class OrderCommandService implements OrderUseCase {
 		// Facade에서 잡아서 처리.
 		Order order = findOrCreateOrder(
 			userId,
-			request.getCheckoutId()
+			request.getOrderSessionId()
 		);
 
 		// draft -> 그냥 수정
@@ -71,6 +70,8 @@ public class OrderCommandService implements OrderUseCase {
 			shippingInfo
 		);
 
+		// 미친 order에만 저장하는데 orderProduct는 안저장함?
+
 		return OrderDraftResponse.from(order);
 	}
 
@@ -85,8 +86,9 @@ public class OrderCommandService implements OrderUseCase {
 		}
 
 		// 예약 싹 취소해줘야지
+		// 여기서 Payment 상태도 다시 바꿔줘야하나?
 		if (order.isPaymentPending()) {
-			activePaymentCleanupService.cleanupForOrderChange(order);
+			paymentPreparationCleanupService.cleanupForOrderChange(order);
 			return;
 		}
 
@@ -100,21 +102,21 @@ public class OrderCommandService implements OrderUseCase {
 
 	private Order findOrCreateOrder(
 		Long userId,
-		String checkoutId
+		String orderSessionId
 	) {
 		return orderRepo
-			.findByUserIdAndCheckoutIdForUpdate(
+			.findByUserIdAndOrderSessionIdForUpdate(
 				userId,
-				checkoutId
+				orderSessionId
 			)
 			.orElseGet(() ->
-				createOrderDraft(userId, checkoutId)
+				createOrderDraft(userId, orderSessionId)
 			);
 	}
 
 	private Order createOrderDraft(
 		Long userId,
-		String checkoutId
+		String orderSessionId
 	) {
 		User user = userRepo.findById(userId)
 			.orElseThrow(() ->
@@ -126,7 +128,7 @@ public class OrderCommandService implements OrderUseCase {
 
 		Order order = Order.createDraft(
 			user,
-			checkoutId
+			orderSessionId
 		);
 
 		return orderRepo.save(order);

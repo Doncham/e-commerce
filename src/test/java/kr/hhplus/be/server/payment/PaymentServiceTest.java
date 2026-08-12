@@ -25,6 +25,7 @@ import kr.hhplus.be.server.application.payment.PaymentReservationProcessor;
 import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
 import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
+import kr.hhplus.be.server.domain.common.ReservationReleaseReason;
 import kr.hhplus.be.server.domain.order.Order;
 import kr.hhplus.be.server.domain.order.OrderStatus;
 import kr.hhplus.be.server.domain.order.ShippingInfo;
@@ -82,13 +83,13 @@ class PaymentServiceTest {
 
 		when(orderRepository.findByIdForUpdate(orderId)).thenReturn(Optional.of(order));
 
-		Payment saved = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
+		Payment saved = Payment.createReady(order, order.getPaymentAmount(), PaymentGatewayType.TOSS, idemKey);
 		ReflectionTestUtils.setField(saved, "id", 10L);
 
 		when(paymentRepository.save(any(Payment.class))).thenReturn(saved);
 
 		// when
-		PaymentAttempt attempt = paymentService.preparePayment(orderId);
+		PaymentAttempt attempt = paymentService.preparePayment(orderId, idemKey);
 
 		// then
 		assertEquals(10L, attempt.getPaymentId());
@@ -124,7 +125,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createReady(order, order.getPaymentAmount(), PaymentGatewayType.TOSS, idemKey);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
@@ -150,7 +151,7 @@ class PaymentServiceTest {
 		assertEquals("tx-1", payment.getPgOrderId());
 
 		verify(reservationProcessor).confirm(order);
-		verify(reservationProcessor, never()).release(any(Order.class), anyString());
+		verify(reservationProcessor, never()).release(any(Order.class), ReservationReleaseReason.valueOf(anyString()));
 
 		verify(outboxPublisher).publishPaymentSuccess(eq(order), eq("tx-1"), any(LocalDateTime.class));
 
@@ -165,7 +166,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createReady(order, order.getPaymentAmount(), PaymentGatewayType.TOSS, idemKey);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
@@ -187,7 +188,7 @@ class PaymentServiceTest {
 		assertEquals(PaymentStatus.FAILED, payment.getStatus());
 //		assertEquals("tx-1", response.getTransactionId());
 
-		verify(reservationProcessor).release(order, "PG_FAILED");
+		verify(reservationProcessor).release(order, ReservationReleaseReason."PG_FAILED");
 		verify(reservationProcessor, never()).confirm(any(Order.class));
 
 		verify(outboxPublisher, never()).publishPaymentSuccess(any(Order.class), anyString(), any(LocalDateTime.class));
@@ -203,7 +204,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createReady(order, order.getPaymentAmount(), PaymentGatewayType.TOSS, idemKey);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 
@@ -226,7 +227,7 @@ class PaymentServiceTest {
 		assertEquals(PaymentStatus.FAILED, payment.getStatus());
 		//assertEquals("tx-1", response.getTransactionId());
 
-		verify(reservationProcessor).release(order, "PAY_AMOUNT_MISMATCH");
+		verify(reservationProcessor).release(order, ReservationReleaseReason."PAY_AMOUNT_MISMATCH"));
 		verify(reservationProcessor, never()).confirm(any(Order.class));
 
 		verify(outboxPublisher, never()).publishPaymentSuccess(any(Order.class), anyString(), any(LocalDateTime.class));
@@ -242,7 +243,7 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createReady(order, order.getPaymentAmount(), PaymentGatewayType.TOSS, idemKey);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
@@ -277,10 +278,10 @@ class PaymentServiceTest {
 		String idemKey = "idem-123";
 		Order order = makeCreatedOrder(orderId, idemKey);
 
-		Payment payment = Payment.createPayment(order, order.getPaymentAmount(), PaymentGatewayType.TOSS);
+		Payment payment = Payment.createReady(order, order.getPaymentAmount(), PaymentGatewayType.TOSS, idemKey);
 		ReflectionTestUtils.setField(payment, "id", 10L);
 
-		payment.paymentSuccess("tx-existing", LocalDateTime.now());
+		payment.paymentSuccess(LocalDateTime.now());
 		order.paid();
 
 		when(paymentRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(payment));
@@ -303,7 +304,7 @@ class PaymentServiceTest {
 		assertEquals("tx-existing", payment.getPgOrderId());
 
 		verify(reservationProcessor, never()).confirm(any(Order.class));
-		verify(reservationProcessor, never()).release(any(Order.class), anyString());
+		verify(reservationProcessor, never()).release(any(Order.class), ReservationReleaseReason.valueOf(anyString()));
 		verify(outboxPublisher, never()).publishPaymentSuccess(any(Order.class), anyString(), any(LocalDateTime.class));
 
 		assertEquals(orderId, response.getOrderId());

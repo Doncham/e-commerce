@@ -20,6 +20,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import kr.hhplus.be.server.entity.BaseTimeEntity;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
@@ -34,10 +35,10 @@ import lombok.NoArgsConstructor;
 @Table(
 	name = "orders",
 	uniqueConstraints = @UniqueConstraint(
-		name = "ux_userid_and_checkoutid",
+		name = "ux_userid_and_ordersessionid",
 		columnNames = {
 			"user_id",
-			"checkout_id"
+			"order_session_id"
 		}
 	),
 	indexes = {
@@ -71,19 +72,20 @@ public class Order extends BaseTimeEntity {
 	// 이것도 차감해줘야지
 	@Column(nullable = false)
 	private Long pointUsedTotal;
-	@Column(name="checkout_id", nullable = false)
-	@NotEmpty // "" , "  "도 막음.
-	private String checkoutId;
+	@Column(name="order_session_id", nullable = false)
+	//@NotEmpty // "" 막음 " "는 못 막음.
+	@NotBlank // " " 막음
+	private String orderSessionId;
 
 	@OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
 	private List<OrderProduct> orderProducts = new ArrayList<>();
 
-	public static Order createDraft(User user, String checkoutId) {
-		return new Order(user, checkoutId);
+	public static Order createDraft(User user, String orderSessionId) {
+		return new Order(user, orderSessionId);
 	}
-	private Order(User user, String checkoutId) {
+	private Order(User user, String orderSessionId) {
 		this.user = Objects.requireNonNull(user);
-		this.checkoutId = Objects.requireNonNull(checkoutId);
+		this.orderSessionId = Objects.requireNonNull(orderSessionId);
 		this.status = OrderStatus.DRAFT;
 		this.itemTotal = 0L;
 		this.couponDiscountTotal = 0L;

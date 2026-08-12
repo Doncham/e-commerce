@@ -24,10 +24,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     select o
     from Order o
     where o.user.id = :userId
-      and o.checkoutId = :checkoutId
+      and o.orderSessionId = :orderSessionId
 """)
-	Optional<Order> findByUserIdAndCheckoutIdForUpdate(
+	Optional<Order> findByUserIdAndOrderSessionIdForUpdate(
 		Long userId,
-		String checkoutId
+		String orderSessionId
 	);
 }

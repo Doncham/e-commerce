@@ -6,8 +6,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -23,7 +21,7 @@ public class OrderDraftCreateRequest {
 	// @PositiveOrZero
 	// private Long pointUseAmount;
 	@NotBlank
-	private String checkoutId;
+	private String orderSessionId;
 	@NotEmpty
 	@Valid // 객체 안쪽까지 들어가서 검증해라
 	private List<OrderDraftItemRequest> items;
@@ -33,14 +31,14 @@ public class OrderDraftCreateRequest {
 		String memo,
 		Long userId,
 		// Long pointUseAmount,
-		String checkoutId,
+		String orderSessionId,
 		List<OrderDraftItemRequest> items
 	) {
 		this.addressId = addressId;
 		this.memo = memo;
 		this.userId = userId;
 		//this.pointUseAmount = pointUseAmount;
-		this.checkoutId = checkoutId;
+		this.orderSessionId = orderSessionId;
 		this.items = items;
 	}
 }

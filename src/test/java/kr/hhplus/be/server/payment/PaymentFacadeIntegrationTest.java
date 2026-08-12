@@ -131,7 +131,7 @@ public class PaymentFacadeIntegrationTest {
 		Point point = pointRepository.findByUserId(u.getId()).get();
 		Long reserved = point.getReserved();
 		Inventory inventoryAfterOrder = inventoryRepository.findByProductId(p.getId()).get();
-		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getCheckoutId()).get();
+		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getOrderSessionId()).get();
 		Assertions.assertEquals(OrderStatus.CREATED, order.getStatus());
 		Assertions.assertEquals(3000L, reserved);
 		Assertions.assertEquals(inventoryAfterOrder.getReserved(), 2L);
@@ -152,7 +152,7 @@ public class PaymentFacadeIntegrationTest {
 
 		Point pointAfterPayment = pointRepository.findByUserId(u.getId()).get();
 		Inventory inventoryAfterPayment = inventoryRepository.findByProductId(p.getId()).get();
-		Order orderAfterPayment = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getCheckoutId()).get();
+		Order orderAfterPayment = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getOrderSessionId()).get();
 		OutboxEvent outboxEvent = outboxEventRepository.findByAggregateIdAndAggregateTypeAndEventType(
 			order.getId(),
 			AggregateType.ORDER,
@@ -218,7 +218,7 @@ public class PaymentFacadeIntegrationTest {
 			.andExpect(jsonPath("$.payAmount").value(1000L))
 			.andDo(print());
 
-		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getCheckoutId()).get();
+		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getOrderSessionId()).get();
 
 		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId(), PaymentGatewayType.TOSS);
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);
@@ -305,7 +305,7 @@ public class PaymentFacadeIntegrationTest {
 			.andExpect(jsonPath("$.payAmount").value(1000L))
 			.andDo(print());
 
-		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getCheckoutId()).get();
+		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getOrderSessionId()).get();
 
 		PayRequest payRequest = PayRequest.of(TestFixture.idemKey(), order.getId(), PaymentGatewayType.TOSS);
 		String payCreateReq = objectMapper.writeValueAsString(payRequest);

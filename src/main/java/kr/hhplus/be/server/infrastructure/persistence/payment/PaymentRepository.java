@@ -23,6 +23,8 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
 	Long countByOrderIdAndIdempotencyKey(Long orderId, String idempotencyKey);
 
+	Long countByOrderId(Long orderId);
+
 	@Query("""
 		select p
 		from Payment p
@@ -35,4 +37,19 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 	Optional<Payment> findByIdForPaymentDetailResponse(Long paymentId);
 
 	Optional<Payment> findByOrderId(Long orderId);
+
+	Optional<Payment> findByPgOrderId(String pgOrderId);
+
+	//@Lock(LockModeType.PESSIMISTIC_WRITE)
+	//Optional<Payment> findByPgOrderIdForUpdate(String pgOrderId);
+
+	Optional<Payment> findByPaymentKey(String paymentKey);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query("""
+		select p
+		from Payment p
+		where p.order.id = :orderId
+	""")
+	Optional<Payment> findByOrderIdForUpdate(Long orderId);
 }

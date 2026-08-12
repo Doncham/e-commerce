@@ -1,9 +1,12 @@
 package kr.hhplus.be.server.domain.payment;
 
 public enum PaymentStatus {
-	REQUESTED,
+	READY,
+	CONFIRMING,
+	INVALIDATED,
+	EXPIRED,
 	SUCCESS,
 	PARTIAL_CANCELED,
 	CANCELLED,
-	FAILURE
+	FAILED;
 }

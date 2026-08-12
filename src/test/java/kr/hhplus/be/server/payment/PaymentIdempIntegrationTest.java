@@ -166,7 +166,7 @@ public class PaymentIdempIntegrationTest {
 		Point point = pointRepository.findByUserId(u.getId()).get();
 		Long reserved = point.getReserved();
 		Inventory inventoryAfterOrder = inventoryRepository.findByProductId(p.getId()).get();
-		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getCheckoutId()).get();
+		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getOrderSessionId()).get();
 		Assertions.assertEquals(OrderStatus.CREATED, order.getStatus());
 		Assertions.assertEquals(3000L, reserved);
 		Assertions.assertEquals(inventoryAfterOrder.getReserved(), 2L);
@@ -207,7 +207,7 @@ public class PaymentIdempIntegrationTest {
 
 		Point pointAfterPayment = pointRepository.findByUserId(u.getId()).get();
 		Inventory inventoryAfterPayment = inventoryRepository.findByProductId(p.getId()).get();
-		Order orderAfterPayment = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getCheckoutId()).get();
+		Order orderAfterPayment = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getOrderSessionId()).get();
 		Long count = paymentRepository.countByOrderId(order.getId());
 		Long outboxCount = outboxEventRepository.countByAggregateIdAndAggregateType(order.getId(), AggregateType.ORDER);
 

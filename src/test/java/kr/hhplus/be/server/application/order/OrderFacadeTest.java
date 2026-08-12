@@ -117,7 +117,7 @@ class OrderFacadeTest {
 		Point point = pointRepository.findByUserId(u.getId()).get();
 		Long reserved = point.getReserved();
 		Inventory inventoryAfterOrder = inventoryRepository.findByProductId(p.getId()).get();
-		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getCheckoutId()).get();
+		Order order = orderRepository.findByUserIdAndCheckoutId(u.getId(), orderRequest.getOrderSessionId()).get();
 		Assertions.assertEquals(OrderStatus.CREATED, order.getStatus());
 		Assertions.assertEquals(3000L, reserved);
 		Assertions.assertEquals(inventoryAfterOrder.getReserved(), 2L);
