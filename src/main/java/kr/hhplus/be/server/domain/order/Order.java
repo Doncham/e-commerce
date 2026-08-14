@@ -208,7 +208,7 @@ public class Order extends BaseTimeEntity {
 		}
 	}
 
-	public void paymentPending() {
+	public void startPaymentPending() {
 		if (this.status != OrderStatus.DRAFT) {
 			throw new IllegalStateException("DRAFT 상태 주문만 결제를 준비할 수 있습니다.");
 		}

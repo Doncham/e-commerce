@@ -59,7 +59,7 @@ public class PaymentDetailResponse {
 			.cancelAmountTotal(payment.getCanceledAmount())
 			.cancelableAmount(payment.getAmount() - payment.getCanceledAmount())
 			.paidAt(payment.getPaidAt())
-			.pgTransactionId(payment.getPgTransactionId())
+			.pgTransactionId(payment.getPgOrderId())
 			.orderProductDetails(PaymentDetailItemResponse.create(payment.getOrder().getOrderProducts()))
 			.build();
 	}

@@ -37,11 +37,12 @@ public enum ErrorCode {
 	COUPON_EXPIRED(HttpStatus.CONFLICT, "COUPON_002","쿠폰 만료"),
 	COUPON_FOR_USER_LIMIT_EXCEED(HttpStatus.CONFLICT, "COUPON_003","유저 쿠폰 발급 한도 초과"),
 	COUPON_ISSUE_LIMIT_EXCEED(HttpStatus.CONFLICT, "COUPON_004","쿠폰 발급 한도 초과"),
-	ALREADY_PAID_PAYMENT(HttpStatus.CONFLICT, "PAYMENT_004","이미 결제됨(결제)"),
-	ALREADY_PAID_ORDER(HttpStatus.CONFLICT, "ORDER_002","이미 결제됨(주문)"),
+	PAYMENT_ALREADY_PAID(HttpStatus.CONFLICT, "PAYMENT_004","이미 결제됨(결제)"),
+	ORDER_ALREADY_PAID(HttpStatus.CONFLICT, "ORDER_002","이미 결제됨(주문)"),
 	ORDER_NOT_MODIFIABLE(HttpStatus.CONFLICT, "ORDER_001", "현재 상태에서는 주문을 변경할 수 없습니다."),
 	PAYMENT_CONFIRMING(HttpStatus.CONFLICT, "PAYMENT_005", "결제 승인 처리가 진행 중입니다."),
 	PRODUCT_NOT_ORDERABLE(HttpStatus.CONFLICT, "PRODUCT_001", "현재 주문할 수 없는 상품입니다."),
+	PAYMENT_NOT_PREPARABLE(HttpStatus.CONFLICT, "PAYMENT_005", "결제 준비를 할 수 없는 상태입니다."),
 
 	// 429 Too Many Request (락 획득 실패)
 	COUPON_ISSUE_BUSY(HttpStatus.TOO_MANY_REQUESTS, "COUPON_004","쿠폰 발급락 획득 실패"),
@@ -49,6 +50,7 @@ public enum ErrorCode {
 	// 503 Service Unavailable, 외부 결제 시스템 일시 장애
 	PAYMENT_CANCEL_FAILED(HttpStatus.SERVICE_UNAVAILABLE, "PG_002","PG payment cancel 실패"),
 	PAYMENT_GATEWAY_TEMPORARILY_STOP(HttpStatus.SERVICE_UNAVAILABLE, "PG_003","PG 서버에 잠깐 오류 발생");
+
 
 
 

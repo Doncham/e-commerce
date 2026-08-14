@@ -14,7 +14,6 @@ import kr.hhplus.be.server.domain.inventoryReserve.InventoryReserveStatus;
 
 @Repository
 public interface InventoryReserveRepository extends JpaRepository<InventoryReservation, Long> {
-	List<InventoryReservation> findByOrderIdAndStatus(Long id, InventoryReserveStatus inventoryReserveStatus);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)
 	@Query(""" 
@@ -25,4 +24,13 @@ public interface InventoryReserveRepository extends JpaRepository<InventoryReser
 			order by ir.inventoryId asc
 """)
 	List<InventoryReservation> findByOrderIdAndStatusForUpdate(@Param("orderId") Long orderId, @Param("status") InventoryReserveStatus inventoryReserveStatus);
+
+	@Lock(LockModeType.PESSIMISTIC_WRITE)
+	@Query(""" 
+   			select ir
+			from InventoryReservation ir
+			where ir.orderId = :orderId 
+			order by ir.inventoryId asc
+""")
+	List<InventoryReservation> findByOrderIdForUpdate(Long id);
 }

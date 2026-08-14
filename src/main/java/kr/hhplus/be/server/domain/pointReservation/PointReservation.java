@@ -139,7 +139,10 @@ public class PointReservation extends BaseTimeEntity {
 	}
 
 	public boolean isReserved() {
-		return status == PointReserveStatus.RESERVED;
+		return this.status == PointReserveStatus.RESERVED;
+	}
+	public boolean isConfirmed() {
+		return this.status == PointReserveStatus.CONFIRMED;
 	}
 
 	private static void validatePositiveAmount(
@@ -156,5 +159,7 @@ public class PointReservation extends BaseTimeEntity {
 	public boolean belongsTo(Long userId) {
 		return this.userId.equals(userId);
 	}
+
+
 
 }

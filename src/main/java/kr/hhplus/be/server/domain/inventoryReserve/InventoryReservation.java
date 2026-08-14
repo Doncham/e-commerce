@@ -111,4 +111,16 @@ public class InventoryReservation extends BaseTimeEntity {
 			);
 		}
 	}
+
+	public boolean isReserved() {
+		return this.status.equals(InventoryReserveStatus.RESERVED);
+	}
+
+	public boolean isConfirmed() {
+		return this.status.equals(InventoryReserveStatus.CONFIRMED);
+	}
+
+	public boolean isReleased() {
+		return this.status.equals(InventoryReserveStatus.RELEASED);
+	}
 }

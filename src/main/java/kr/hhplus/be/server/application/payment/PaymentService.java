@@ -5,27 +5,23 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.application.inventory.InventoryService;
-import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
 import kr.hhplus.be.server.application.payment.dto.PaymentCancelRequest;
 import kr.hhplus.be.server.application.payment.dto.PaymentCancelResponse;
-import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.application.point.PointService;
+import kr.hhplus.be.server.domain.common.ReservationReleaseReason;
 import kr.hhplus.be.server.domain.coupon.exception.CouponExpiredException;
 import kr.hhplus.be.server.domain.coupon.exception.InsufficientCouponStockException;
 import kr.hhplus.be.server.domain.coupon.exception.NotFoundCoupon;
 import kr.hhplus.be.server.domain.coupon.exception.UserCouponLimitExceededException;
 import kr.hhplus.be.server.domain.order.Order;
-import kr.hhplus.be.server.domain.order.exception.OrderAlreadyPaidOrderException;
 import kr.hhplus.be.server.domain.order.exception.OrderNotFoundException;
 import kr.hhplus.be.server.domain.orderproduct.OrderProduct;
 import kr.hhplus.be.server.domain.payment.Payment;
@@ -60,48 +56,6 @@ public class PaymentService {
 	private final Clock clock;
 
 
-
-	@Transactional
-	public PaymentAttempt preparePayment(Long orderId) {
-		Order order = orderRepo.findByIdForUpdate(orderId)
-			.orElseThrow(() -> new OrderNotFoundException(ErrorCode.NOT_FOUND_ORDER, orderId));
-
-		// **하나의 주문에는 성공 결제가 하나만 존재할 수 있다.**
-		if(order.isPaid()) {
-			// 이미 성공 결제면 예외
-			throw new OrderAlreadyPaidOrderException(ErrorCode.ALREADY_PAID_ORDER, orderId);
-		}
-
-		// **하나의 주문에는 동시에 하나의 결제 시도만 존재할 수 있다.**
-		// paymentPending: 이미 Payment가 존재함.
-		// paymentComplete: 이미 PG 결제됨.
-		if(order.isPaymentPending() || order.isPaymentComplete()) {
-			Payment existing = paymentRepo.findByOrderId(orderId)
-				.orElseThrow();
-			return PaymentAttempt.of(
-				orderId,
-				existing.getId(),
-				existing.getAmount(),
-				existing.getIdempotencyKey(),
-				order.getStatus()
-			);
-		}
-
-		if(!order.canStartPayment()) {
-			throw new IllegalStateException("결제 가능한 주문 상태가 아닙니다.");
-		}
-
-		Payment pending = Payment.createPayment(order, order.getPayAmount(), PaymentGatewayType.TOSS);
-		// 유니크 충돌 빠르게 확정
-		pending = paymentRepo.saveAndFlush(pending);
-
-		order.paymentPending();
-		return PaymentAttempt.of(orderId, pending.getId(), pending.getAmount(), pending.getIdempotencyKey(), order.getStatus());
-
-
-
-	}
-
 	@Transactional
 	@Retryable(
 		retryFor = {
@@ -121,28 +75,28 @@ public class PaymentService {
 	public PayResponse completePayment(Long paymentId, PaymentGatewayResponse pgResp) {
 		Payment payment = paymentRepo.findByIdForUpdate(paymentId)
 			.orElseThrow(() ->
-				new PaymentNotFoundException(ErrorCode.NOT_FOUND_PAYMENT, paymentId));
+				new PaymentNotFoundException(ErrorCode.PAYMENT_NOT_FOUND, paymentId));
 		// order 상태를 변경할거니까 락을 걸어서 조회하는건가?
 		Long orderId = payment.getOrder().getId();
 		Order order = orderRepo.findByIdForUpdate(orderId)
-			.orElseThrow(() -> new OrderNotFoundException(ErrorCode.NOT_FOUND_ORDER, orderId));;
+			.orElseThrow(() -> new OrderNotFoundException(ErrorCode.ORDER_NOT_FOUND, orderId));;
 
 		// 이미 처리된 결제면 멱등 반환
-		if(payment.isFinalized()) {
-			return PayResponse.of(order, payment);
-		}
+		// if(payment.isFinalized()) {
+		// 	return PayResponse.of(order, payment);
+		// }
 		if (pgResp.getStatus() != PaymentGatewayStatus.SUCCESS) {
-			return failPayment(pgResp, payment, order, "PG_FAILED");
+			return failPayment(pgResp, payment, order, ReservationReleaseReason.PAYMENT_FAILED);
 		}
-		if (pgResp.getPaidAmount() == null || !pgResp.getPaidAmount().equals(order.getPayAmount())) {
-			return failPayment(pgResp, payment, order, "PAY_AMOUNT_MISMATCH");
+		if (pgResp.getPaidAmount() == null || !pgResp.getPaidAmount().equals(order.getPaymentAmount())) {
+			return failPayment(pgResp, payment, order, ReservationReleaseReason.PAYMENT_FAILED);
 		}
 
 		return succeedPayment(pgResp, payment, order, clock);
 	}
 	private PayResponse succeedPayment(PaymentGatewayResponse pgResp, Payment payment, Order order, Clock clock) {
 		LocalDateTime paidAt = LocalDateTime.now(clock);
-		payment.paymentSuccess(pgResp.getPgTransactionId(), paidAt);
+		payment.paymentSuccess(paidAt);
 
 		reservationProcessor.confirm(order);
 		order.paid();
@@ -151,8 +105,8 @@ public class PaymentService {
 		return PayResponse.of(order, payment);
 	}
 
-	private PayResponse failPayment(PaymentGatewayResponse pgResp, Payment payment, Order order, String reason) {
-		payment.paymentFailed(reason);
+	private PayResponse failPayment(PaymentGatewayResponse pgResp, Payment payment, Order order, ReservationReleaseReason reason) {
+		payment.paymentFailed(reason.name());
 		order.failed();
 		reservationProcessor.release(order, reason);
 
@@ -164,7 +118,7 @@ public class PaymentService {
 		// 나중에 JWT에 있는 userId와 payment.user.id 검증 필요
 		Payment payment = paymentRepo.findByIdForPaymentDetailResponse(paymentId)
 			.orElseThrow(() ->
-				new PaymentNotFoundException(ErrorCode.NOT_FOUND_PAYMENT, paymentId));
+				new PaymentNotFoundException(ErrorCode.PAYMENT_NOT_FOUND, paymentId));
 		return PaymentDetailResponse.create(payment);
 	}
 
@@ -209,7 +163,7 @@ public class PaymentService {
 			return PaymentCancelJob.of(
 				created,
 				payment.getGatewayType(),
-				payment.getPgTransactionId(),
+				payment.getPgOrderId(),
 				String.valueOf(orderId)
 			);
 	}
@@ -225,7 +179,7 @@ public class PaymentService {
 		return PaymentCancelJob.of(
 			existing,
 			payment.getGatewayType(),
-			payment.getPgTransactionId(),
+			payment.getPgOrderId(),
 			String.valueOf(orderId)
 		);
 	}
@@ -363,7 +317,7 @@ public class PaymentService {
 	private void getOrderAndCheckCancelableForPrepare(Long orderId) {
 		Order order = orderRepo.findById(orderId)
 			.orElseThrow(() ->
-				new OrderNotFoundException(ErrorCode.NOT_FOUND_ORDER, orderId)
+				new OrderNotFoundException(ErrorCode.ORDER_NOT_FOUND, orderId)
 			);
 		if (!order.canCancelAnyProduct()) {
 			throw new IllegalArgumentException("해당 주문은 취소할 수 없습니다. orderId = " + orderId);
@@ -373,7 +327,7 @@ public class PaymentService {
 	private Payment getPaymentAndCheckCancelableForPrepare(Long paymentId) {
 		Payment payment = paymentRepo.findById(paymentId)
 			.orElseThrow(() ->
-				new PaymentNotFoundException(ErrorCode.NOT_FOUND_PAYMENT, paymentId));
+				new PaymentNotFoundException(ErrorCode.PAYMENT_NOT_FOUND, paymentId));
 		if (!payment.canStartCancel()) {
 			throw new IllegalArgumentException("해당 결제는 취소할 수 없습니다. paymentId = " + paymentId);
 		}
@@ -395,12 +349,12 @@ public class PaymentService {
 
 		Payment payment = paymentRepo.findById(paymentCancel.getPaymentId())
 			.orElseThrow(() ->
-				new PaymentNotFoundException(ErrorCode.NOT_FOUND_PAYMENT, paymentCancel.getPaymentId()));
+				new PaymentNotFoundException(ErrorCode.PAYMENT_NOT_FOUND, paymentCancel.getPaymentId()));
 
 		Long orderId = payment.getOrder().getId();
 		Order order = orderRepo.findById(orderId)
 			.orElseThrow(() ->
-				new OrderNotFoundException(ErrorCode.NOT_FOUND_ORDER, orderId));
+				new OrderNotFoundException(ErrorCode.ORDER_NOT_FOUND, orderId));
 
 		List<OrderProduct> targetProducts = orderProductRepo.findByPaymentCancelId(paymentCancel.getId());
 

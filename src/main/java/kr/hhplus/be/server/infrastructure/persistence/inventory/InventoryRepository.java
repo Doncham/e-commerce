@@ -45,4 +45,13 @@ public interface InventoryRepository extends JpaRepository<Inventory, Long> {
 		order by i.product.id asc
 	""")
 	List<Inventory> findByProductIdIn(@Param("productIds") List<Long> productsIds);
+
+	@Query("""
+        select i
+        from Inventory i
+        where i.id in :inventoryIds
+    """)
+	List<Inventory> findAllByIdIn(@Param("inventoryIds")
+		List<Long> inventoryIds
+	);
 }

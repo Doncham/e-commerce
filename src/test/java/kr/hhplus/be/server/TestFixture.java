@@ -201,17 +201,17 @@ public final class TestFixture {
 
 	// ===== Payment =====
 	public static Payment requestedPayment(Order order, Long amount) {
-		return Payment.createReady(order, amount, PaymentGatewayType.TOSS, UUID.randomUUID().toString());
+		return Payment.createReady(order, amount, PaymentGatewayType.TOSS, UUID.randomUUID().toString(), LocalDateTime.now());
 	}
 
 	public static Payment successPayment(Order order, Long amount, String uuid) {
-		Payment p = Payment.createReady(order, amount,PaymentGatewayType.TOSS,uuid);
+		Payment p = Payment.createReady(order, amount,PaymentGatewayType.TOSS,uuid, LocalDateTime.now());
 		p.paymentSuccess(now());
 		return p;
 	}
 
 	public static Payment failedPayment(Order order, Long amount, String reason, String uuid) {
-		Payment p = Payment.createReady(order, amount, PaymentGatewayType.TOSS, uuid);
+		Payment p = Payment.createReady(order, amount, PaymentGatewayType.TOSS, uuid, LocalDateTime.now());
 		p.paymentFailed(reason);
 		return p;
 	}
