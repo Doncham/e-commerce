@@ -35,30 +35,36 @@ public class InventoryReservation extends BaseTimeEntity {
 	@Column(name = "inventory_id", nullable = false)
 	private Long inventoryId;
 
+	@Column(name = "product_id", nullable = false)
+	private Long productId;
+
 	@Column(nullable = false)
 	private Long qty;
 
 	@Enumerated(EnumType.STRING)
+	@Column(nullable = false)
 	private InventoryReserveStatus status;
 
 	@Enumerated(EnumType.STRING)
 	@Column(name = "release_reason")
 	private ReservationReleaseReason releaseReason;
 
-	private InventoryReservation(Long orderId, Long inventoryId, Long qty, InventoryReserveStatus status) {
+	private InventoryReservation(Long orderId, Long inventoryId, Long qty, InventoryReserveStatus status, Long productId) {
 		validatePositiveQuantity(qty);
 		this.orderId = orderId;
 		this.inventoryId = inventoryId;
 		this.qty = qty;
 		this.status = status;
+		this.productId = productId;
 	}
 
-	public static InventoryReservation reserve(Long orderId, Long inventoryId, Long qty) {
+	public static InventoryReservation reserve(Long orderId, Long inventoryId, Long qty, Long productId) {
 		return new InventoryReservation(
 			orderId,
 			inventoryId,
 			qty,
-			InventoryReserveStatus.RESERVED
+			InventoryReserveStatus.RESERVED,
+			productId
 		);
 	}
 
@@ -113,14 +119,14 @@ public class InventoryReservation extends BaseTimeEntity {
 	}
 
 	public boolean isReserved() {
-		return this.status.equals(InventoryReserveStatus.RESERVED);
+		return this.status == InventoryReserveStatus.RESERVED;
 	}
 
 	public boolean isConfirmed() {
-		return this.status.equals(InventoryReserveStatus.CONFIRMED);
+		return this.status == InventoryReserveStatus.CONFIRMED;
 	}
 
 	public boolean isReleased() {
-		return this.status.equals(InventoryReserveStatus.RELEASED);
+		return this.status == InventoryReserveStatus.RELEASED;
 	}
 }

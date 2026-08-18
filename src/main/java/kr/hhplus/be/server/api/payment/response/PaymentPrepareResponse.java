@@ -1,7 +1,5 @@
 package kr.hhplus.be.server.api.payment.response;
 
-import java.time.LocalDateTime;
-
 import kr.hhplus.be.server.domain.payment.Payment;
 import kr.hhplus.be.server.domain.payment.PaymentStatus;
 import lombok.Builder;

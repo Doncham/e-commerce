@@ -115,39 +115,7 @@ public class Order extends BaseTimeEntity {
 		this.shippingAddress = Objects.requireNonNull(shippingInfo, "shippingInfo is required");
 
 	}
-	// 결제 준비 메서드(초기 버전)
-	public void preparePayment(
-		long couponDiscountTotal,
-		long pointUsedTotal
-	) {
-		ensureDraftState();
 
-		if (couponDiscountTotal < 0 || pointUsedTotal < 0) {
-			throw new IllegalArgumentException(
-				"할인 금액은 음수일 수 없습니다."
-			);
-		}
-
-		long calculatedPaymentAmount =
-			itemTotal - couponDiscountTotal - pointUsedTotal;
-
-		if (calculatedPaymentAmount < 0) {
-			throw new IllegalArgumentException(
-				"최종 결제 금액은 음수일 수 없습니다."
-			);
-		}
-
-		if (calculateAllocatedPointTotal() != pointUsedTotal) {
-			throw new IllegalStateException(
-				"배분된 포인트 합계가 일치하지 않습니다."
-			);
-		}
-
-		this.couponDiscountTotal = couponDiscountTotal;
-		this.pointUsedTotal = pointUsedTotal;
-		this.paymentAmount = calculatedPaymentAmount;
-		this.status = OrderStatus.PAYMENT_PENDING;
-	}
 	private void ensureDraftState() {
 		if(this.status != OrderStatus.DRAFT){
 			throw new IllegalStateException("Only draft order can be completed");
@@ -208,11 +176,33 @@ public class Order extends BaseTimeEntity {
 		}
 	}
 
-	public void startPaymentPending() {
-		if (this.status != OrderStatus.DRAFT) {
-			throw new IllegalStateException("DRAFT 상태 주문만 결제를 준비할 수 있습니다.");
+	public void applyPaymentPreparation(
+		long couponDiscountTotal,
+		long pointUsedTotal,
+		long paymentAmount
+	) {
+		ensureDraftState();
+
+		if (couponDiscountTotal < 0
+			|| pointUsedTotal < 0
+			|| paymentAmount < 0) {
+
+			throw new IllegalArgumentException(
+				"Payment amounts cannot be negative."
+			);
 		}
-		this.status = OrderStatus.PAYMENT_PENDING;
+
+		this.couponDiscountTotal =
+			couponDiscountTotal;
+
+		this.pointUsedTotal =
+			pointUsedTotal;
+
+		this.paymentAmount =
+			paymentAmount;
+
+		this.status =
+			OrderStatus.PAYMENT_PENDING;
 	}
 
 	public boolean isPaymentPending() {

@@ -22,7 +22,7 @@ public class PaymentQueryService {
 	@Transactional(readOnly = true)
 	public PayResponse findPayResult(Long orderId) {
 		Order order = orderRepository.findById(orderId)
-			.orElseThrow(() -> new OrderNotFoundException(ErrorCode.NOT_FOUND_ORDER, orderId));
+			.orElseThrow(() -> new OrderNotFoundException(ErrorCode.ORDER_NOT_FOUND, orderId));
 
 		// idemKey로 결제 시도 레코드가 있다면 그게 반환
 		Payment payment = paymentRepository.findByOrderId(orderId)
@@ -44,8 +44,8 @@ public class PaymentQueryService {
 		// 아직 결제 시도도 없는 경우
 		return PayResponse.builder()
 			.orderId(order.getId())
-			.amount(order.getPayAmount())
-			.status(PaymentStatus.REQUESTED)
+			.amount(order.getPaymentAmount())
+			.status(PaymentStatus.READY)
 			.message("결제 정보 조회 중(요청 생성 전/지연 가능)")
 			.build();
 	}

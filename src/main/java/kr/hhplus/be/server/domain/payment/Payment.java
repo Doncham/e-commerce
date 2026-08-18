@@ -109,8 +109,7 @@ public class Payment extends BaseTimeEntity {
 			order,
 			amount,
 			gatewayType,
-			idemKey
-			ㅖ,
+			idemKey,
 			expiresAt
 		);
 
@@ -220,23 +219,23 @@ public class Payment extends BaseTimeEntity {
 	}
 
 	// 주문 상품/수량 변경으로 현재 결제 준비를 무효화
-	// READY -> INVALIDATED
+	// READY -> RESET
 	// 상위 서비스에서는 쿠폰,포인트,재고도 예약 해제한다.
-	public void invalidateForOrderChange() {
+	public void resetForOrderChange() {
 		// 멱등적
-		if (status == PaymentStatus.INVALIDATED) {
+		if (status == PaymentStatus.RESET) {
 			return;
 		}
 
 		if (status != PaymentStatus.READY) {
 			throw new IllegalStateException(
-				"Only READY payment can be invalidated. "
+				"Only READY payment can be reset. "
 					+ "paymentId=" + id
 					+ ", status=" + status
 			);
 		}
 
-		this.status = PaymentStatus.INVALIDATED;
+		this.status = PaymentStatus.RESET;
 	}
 
 
@@ -312,8 +311,8 @@ public class Payment extends BaseTimeEntity {
 		return this.status.equals(PaymentStatus.READY);
 	}
 
-	public boolean isInvalidated() {
-		return this.status.equals(PaymentStatus.INVALIDATED);
+	public boolean isReset() {
+		return this.status.equals(PaymentStatus.RESET);
 	}
 
 	public boolean isExpired() {
@@ -349,9 +348,9 @@ public class Payment extends BaseTimeEntity {
 
 	private void validatePrepareAgain() {
 		// 현재 재준비를 허용하는 상태
-		// READY, INVALIDATED, FAILED, EXPIRED
+		// READY, RESET, FAILED, EXPIRED
 		if (status == PaymentStatus.READY
-			|| status == PaymentStatus.INVALIDATED
+			|| status == PaymentStatus.RESET
 			|| status == PaymentStatus.FAILED
 			|| status == PaymentStatus.EXPIRED) {
 			return;

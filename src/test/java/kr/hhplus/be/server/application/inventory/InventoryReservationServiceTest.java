@@ -35,7 +35,7 @@ class InventoryReservationServiceTest {
 		Order order = mock(Order.class);
 		when(order.getId()).thenReturn(orderId);
 
-		InventoryReservation r1 = InventoryReservation.reserve(orderId, 100L, 2L);
+		InventoryReservation r1 = InventoryReservation.reserve(orderId, 100L, 2L, 1L);
 
 		when(invReserveRepo.findByOrderIdAndStatusForUpdate(orderId, InventoryReserveStatus.RESERVED))
 			.thenReturn(List.of(r1));
@@ -57,7 +57,7 @@ class InventoryReservationServiceTest {
 		Order order = mock(Order.class);
 		when(order.getId()).thenReturn(orderId);
 
-		InventoryReservation r1 = InventoryReservation.reserve(orderId, 100L, 2L);
+		InventoryReservation r1 = InventoryReservation.reserve(orderId, 100L, 2L, 1L);
 
 		when(invReserveRepo.findByOrderIdAndStatusForUpdate(orderId, InventoryReserveStatus.RESERVED))
 			.thenReturn(List.of(r1));

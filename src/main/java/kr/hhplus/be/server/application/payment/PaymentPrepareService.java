@@ -40,7 +40,7 @@ public class PaymentPrepareService {
 	) {
 		Long userId = request.getUserId();
 		// 1. Order를 먼저 잠근다.
-		// 같은 Order에 대해 결제 준비 요청이 동시에 들어왔을 때
+		// 같은 Order에 대해 결제 준비 요청이 동시에 들어왔을 때 대비
 		Order order = orderRepo
 			.findByIdForUpdate(request.getOrderId())
 			.orElseThrow(() ->
@@ -74,10 +74,7 @@ public class PaymentPrepareService {
 		}
 
 		// 5. 새로운 결제 준비를 시작할 수 있는 상태인지 검사한다.
-		validatePaymentCanPrepare(
-			order,
-			payment
-		);
+		validatePaymentCanPrepare(order, payment);
 
 		/*
 		 * 6. 재고 예약
@@ -99,8 +96,7 @@ public class PaymentPrepareService {
 		 * 다시 결제 준비:
 		 *   기존 예약 해제 → 새 금액 예약
 		 */
-		long reservedPointAmount = 1L;
-			pointReservationService
+		long reservedPointAmount = pointReservationService
 				.reserveOrReplace(
 					order,
 					request.getPointUseAmount()
@@ -115,15 +111,13 @@ public class PaymentPrepareService {
 		 */
 		long paymentAmount =
 			calculatePaymentAmount(
-				order,
+				order.getItemTotal(),
 				reservedPointAmount
 			);
 
 		LocalDateTime expiresAt =
 			LocalDateTime.now(clock)
-				.plusMinutes(
-					PAYMENT_EXPIRE_MINUTES
-				);
+				.plusMinutes(PAYMENT_EXPIRE_MINUTES);
 
 		/*
 		 * 9. Payment가 없으면 최초 생성,
@@ -153,7 +147,7 @@ public class PaymentPrepareService {
 		 * 10. 재고/포인트 예약까지 성공했으므로
 		 * Order를 결제 대기 상태로 변경한다.
 		 */
-		order.startPaymentPending();
+		order.applyPaymentPreparation(0L, reservedPointAmount, paymentAmount);
 
 		return PaymentPrepareResponse.from(
 			payment
@@ -197,10 +191,10 @@ public class PaymentPrepareService {
 	/*
 	 * 재준비 가능한 상태
 	 *
-	 * READY       → 쿠폰/포인트 조건 변경 등
-	 * INVALIDATED → Order 변경 후 다시 결제
-	 * FAILED      → 결제 실패 후 재결제
-	 * EXPIRED     → 만료 후 재결제
+	 * READY       → 쿠폰/포인트 조건 변경 가능
+	 * RESET       → Order 변경 후 다시 결제 가능
+	 * FAILED      → 결제 실패 후 재결제 가능
+	 * EXPIRED     → 만료 후 재결제 가능
 	 */
 	private void validatePaymentCanPrepare(
 		Order order,
@@ -246,24 +240,21 @@ public class PaymentPrepareService {
 	}
 
 	private long calculatePaymentAmount(
-		Order order,
-		long pointUseAmount
+		long itemTotal,
+		long pointUsedAmount
 	) {
-		// long orderAmount =
-		// 	order.calculateTotalAmount();
-		//
-		// if (pointUseAmount > orderAmount) {
-		// 	throw BusinessException.of(
-		// 		ErrorCode.INVALID_POINT_USE_AMOUNT,
-		// 		"Point use amount exceeds order amount. "
-		// 			+ "orderAmount="
-		// 			+ orderAmount
-		// 			+ ", pointUseAmount="
-		// 			+ pointUseAmount
-		// 	);
-		// }
+		long paymentAmount =
+			itemTotal - pointUsedAmount;
 
-		//return orderAmount - pointUseAmount;
-		return 1L;
+		if (paymentAmount < 0) {
+			throw BusinessException.of(
+				ErrorCode.POINT_AMOUNT_NOT_VALID,
+				"Point use amount exceeds item total. "
+					+ "itemTotal=" + itemTotal
+					+ ", pointUsedAmount=" + pointUsedAmount
+			);
+		}
+
+		return paymentAmount;
 	}
 }

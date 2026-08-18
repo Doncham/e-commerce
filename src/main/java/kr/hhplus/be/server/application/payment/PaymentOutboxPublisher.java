@@ -38,7 +38,7 @@ public class PaymentOutboxPublisher {
 		PaymentCompletedPayload payload = PaymentCompletedPayload.of(
 			order.getUser().getId(),
 			order.getId(),
-			order.getPayAmount(),
+			order.getPaymentAmount(),
 			pgTransactionId
 		);
 

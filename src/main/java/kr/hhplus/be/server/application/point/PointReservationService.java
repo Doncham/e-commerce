@@ -138,12 +138,16 @@ public class PointReservationService {
 	}
 
 
-	// 1.기존 예약 없음 -> 새 포인트 예약
-	// 2.요청 금액이 0 -> 기존 RESERVED가 있으면 해제
-	// 3.기존 CONFIRMED -> 이미 사용 확정된 포인트이므로 변경 불가
-	// 4.기존 RESERVED + 요청 금액 동일 -> 기존 예약 유지
-	// 5.기존 RESERVED + 요청 금액 변경 -> 기존 예약 해제 후 새 금액 예약
-	// 6.기존 RELEASED -> 새 금액으로 다시 예약
+	// 1. reservation 없음 → 새로 예약
+	// 2. 요청 = 0 → 기존 예약 해제
+	// 3. CONFIRMED → 변경 불가
+	// 4. RESERVED + 같은 금액 → 유지
+	// 5. 나머지
+	// → 기존 예약 해제
+	// → 새 금액 예약
+	// 나머지란
+	// RESERVED + 금액 변경
+	// RELEASED + 새로운 금액
 	public long reserveOrReplace(Order order, long pointUseAmount) {
 		validatePointUseAmount(pointUseAmount);
 
@@ -179,6 +183,15 @@ public class PointReservationService {
 			return pointUseAmount;
 		}
 
+		if (reservation.isConfirmed()) {
+			throw new IllegalStateException(
+				"Confirmed point reservation cannot be replaced. "
+					+ "orderId=" + orderId
+					+ ", reservationId="
+					+ reservation.getId()
+			);
+		}
+
 		// 포인트를 안쓰기로 결정했는데 이전 예약이 존재하는 상황
 		// 이전 예약을 해제 -> 포인트도 복구
 		if (pointUseAmount == 0L) {
@@ -194,14 +207,6 @@ public class PointReservationService {
 			return 0L;
 		}
 
-		if (reservation.isConfirmed()) {
-			throw new IllegalStateException(
-				"Confirmed point reservation cannot be replaced. "
-					+ "orderId=" + orderId
-					+ ", reservationId="
-					+ reservation.getId()
-			);
-		}
 
 		// 이전 예약이 존재 + 포인트 사용량의 변화가 없는 경우 -> 별도 예약 x
 		if (reservation.isReserved() &&
@@ -215,20 +220,9 @@ public class PointReservationService {
 
 
 
-		/*
-		 * RESERVED라면 먼저 기존 reserved를 복원한다.
-		 *
-		 * RELEASED라면 release()가 false를 반환하므로
-		 * Point reserved는 건드리지 않는다.
-		 */
-		// 이전 예약이 존재 + 지금 예약하려는 포인트양과 다름.
-		// 이전 예약은
-		// 이전 예약 취소, 새로운 예약 생성
-		// RESERVED(새로운 포인트 예약 필요) or RELEASED 상태 냅다 예약 취소
-		// -> RELEASED는 그냥 false 반환
-		// -> RESERVED는 RELEASED로 변환하면서 if문 안에서 point 복구
 		Point point = getPointForUpdate(userId);
-
+		// 기존 RESERVED라면 먼저 해제한다.
+		// RELEASED라면 false이므로 아무것도 하지 않는다.
 		if (reservation.release(
 			ReservationReleaseReason.PAYMENT_REPREPARED
 		)) {
@@ -237,7 +231,7 @@ public class PointReservationService {
 			);
 		}
 
-		// 새로운 예약
+		// 새로운 예약이 가능한지 검증
 		validateAvailablePoint(
 			point,
 			pointUseAmount

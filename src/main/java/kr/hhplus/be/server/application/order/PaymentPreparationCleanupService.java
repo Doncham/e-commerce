@@ -1,7 +1,6 @@
 package kr.hhplus.be.server.application.order;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import kr.hhplus.be.server.application.inventory.InventoryReservationService;
 import kr.hhplus.be.server.application.point.PointReservationService;
@@ -76,7 +75,7 @@ public class PaymentPreparationCleanupService {
 			ReservationReleaseReason.ORDER_CHANGED
 		);
 
-		payment.invalidateForOrderChange();
+		payment.resetForOrderChange();
 
 		order.reopenDraft();
 	}

@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.IntStream;
 
 import org.junit.jupiter.api.AfterEach;
@@ -195,8 +196,8 @@ class PaymentCancelFacadeIntegrationTest {
 		);
 
 		order = fixturePersist.saveAndFlush(orderRepo, order);
-
-		Payment payment = TestFixture.successPayment(order, order.getPaymentAmount());
+		String idempotencyKey = UUID.randomUUID().toString();
+		Payment payment = TestFixture.successPayment(order, order.getPaymentAmount(),idempotencyKey);
 
 		// 취소 가능 상태를 맞추기 위해 주문도 paid 처리
 		order.paid();

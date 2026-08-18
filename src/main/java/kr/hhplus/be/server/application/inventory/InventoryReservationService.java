@@ -103,25 +103,24 @@ public class InventoryReservationService {
 
 	// 1. 예약 없음 -> 최초 예약
 	// 2. 현재 Order와 동일한 RESERVED 예약 존재 -> 유지
-	// -> 동일한 상태가 아니면? 예외 펑
 	// 3. 기존 예약이 RELEASED -> 현재 Order 기준으로 다시 예약
 	// 비정상 시나리오(정합성이 깨짐)
-	// 1. RESERVED / RELEASED가 섞여 있음
-	// 2. CONFIRMED가 결제 준비 단계에서 발견됨
-	// 3. RESERVED 상태인데 현재 주문 수량과 예약 수량이 다름
+	// 1. CONFIRMED가 결제 준비 단계에서 발견됨
+	// 2.
 	public void reserveOrKeep(Order order) {
-		// 궁금한게 왜 List 반환은 Optional 반환을 안하나?
-		List<InventoryReservation> reservations =
-			invReserveRepo.findByOrderIdForUpdate(order.getId());
 
-		// 1. 아직 예약이 없다? -> 최초 결제
-		if(reservations.isEmpty()) {
+		List<InventoryReservation> reservations =
+			invReserveRepo.findByOrderIdForUpdate(
+				order.getId()
+			);
+
+		// 1. 최초 결제 준비
+		if (reservations.isEmpty()) {
 			reserveNew(order);
 			return;
 		}
 
-		// CONFIRMD 예약 존재 -> 이미 재고 사용 확정이라는 뜻
-		// 그런데 다시 payment prepare가 호출됐다는 건 정합성이 깨진 상태다.
+		// 결제 준비 단계에서 CONFIRMED 예약이 존재하면 비정상
 		if (reservations.stream()
 			.anyMatch(InventoryReservation::isConfirmed)) {
 
@@ -131,38 +130,45 @@ public class InventoryReservationService {
 					+ "orderId=" + order.getId()
 			);
 		}
-		boolean allReserved =
+
+		Map<Long, Long> requiredQtyByProductId =
+			getOrderQtyByProductId(order);
+
+		/*
+		 * 과거 RELEASED 예약은 무시하고,
+		 * 현재 살아 있는 RESERVED 예약만 비교한다.
+		 */
+		Map<Long, Long> reservedQtyByProductId =
 			reservations.stream()
-				.allMatch(InventoryReservation::isReserved);
+				.filter(InventoryReservation::isReserved)
+				.collect(Collectors.toMap(
+					InventoryReservation::getProductId,
+					InventoryReservation::getQty
+				));
 
-		boolean allReleased =
-			reservations.stream()
-				.allMatch(InventoryReservation::isReleased);
 
-		// RESERVED와 RELEASED가 섞인 상태는 정합성이 깨진 상태
-		if (!allReserved && !allReleased) {
-			throw new IllegalStateException(
-				"Inventory reservation states are inconsistent. "
-					+ "orderId=" + order.getId()
-			);
-		}
-
-		// 2. 전부 RESERVED 상태라면 현재 주문 내역과 비교하고 예약 진행
-		if (allReserved) {
-			validateReservedQuantityMatchesOrder(
-				order,
-				reservations
-			);
+		// 2. 기존 예약과 현재 주문 상태가 같음 -> return
+		if (requiredQtyByProductId
+			.equals(reservedQtyByProductId)) {
 			return;
 		}
 
-		// 3. 이 라인까지 오면 모든 예약이 RELEASED다.
-		// 주문 변경 -> 예약이 다 풀린 상태
-		// 중간에 다른 사람이 재고를 다 가져갔을 수 있어서 재고 확인 필요
-		reserveAgain(
-			order,
-			reservations
-		);
+		// 여기까지 왔다면 기존 예약과 현재 주문 상태가 다른거임.
+		// 주문 상태 변경 -> 싹 다 RELEASED인데 RESERVED된 예약이 존재한다면 정합성 깨진 것.
+		if (!reservedQtyByProductId.isEmpty()) {
+			throw new IllegalStateException(
+				"Reserved inventory does not match order. "
+					+ "orderId=" + order.getId()
+					+ ", required="
+					+ requiredQtyByProductId
+					+ ", reserved="
+					+ reservedQtyByProductId
+			);
+		}
+
+		// 주문 변경으로 기존 예약이 전부 RELEASE된 상황이므로
+		// 현재 Order 기준으로 다시 예약한다.
+		reserveAgain(order, reservations);
 	}
 
 
@@ -200,7 +206,8 @@ public class InventoryReservationService {
 				InventoryReservation.reserve(
 					order.getId(),
 					inventory.getId(),
-					qty
+					qty,
+					inventory.getProduct().getId()
 				)
 			);
 		}
@@ -209,11 +216,19 @@ public class InventoryReservationService {
 	/**
 	 *
 	 * order에 있는 정보대로 예약하기
+	 * 1. 새로운 상품 예약 저장
+	 * 2. 기존 상품은 예약 갱신
 	 */
 	private void reserveAgain(
 		Order order,
 		List<InventoryReservation> reservations
 	) {
+		/*
+		 * 현재 주문 기준 필요한 수량
+		 *
+		 * B -> 2
+		 * C -> 1
+		 */
 		Map<Long, Long> qtyByProductId =
 			getOrderQtyByProductId(order);
 
@@ -222,21 +237,24 @@ public class InventoryReservationService {
 				qtyByProductId.keySet()
 			);
 
-
-		// 기존 예약을 inventoryId로 연결한다.
+		/*
+		 * 과거 예약을 productId 기준으로 찾기 쉽게 변경.
+		 *
+		 * A -> RELEASED reservation
+		 * B -> RELEASED reservation
+		 */
 		Map<Long, InventoryReservation>
-			reservationByInventoryId =
+			reservationByProductId =
 			reservations.stream()
-				.collect(
-					Collectors.toMap(
-						InventoryReservation::getInventoryId,
-						Function.identity()
-					)
-				);
+				.collect(Collectors.toMap(
+					InventoryReservation::getProductId,
+					Function.identity()
+				));
 
 		/*
-		 * 해제된 사이 재고가 소진됐을 수 있으므로
-		 * 반드시 다시 검증한다.
+		 * 기존 예약을 RELEASE한 이후
+		 * 다른 주문이 재고를 가져갔을 수 있으므로
+		 * 현재 시점 재고를 다시 검증한다.
 		 */
 		validateAvailableStocks(
 			inventories,
@@ -244,7 +262,7 @@ public class InventoryReservationService {
 		);
 
 		/*
-		 * 검증 이후 실제 재예약.
+		 * 검증이 모두 끝난 뒤 실제 예약.
 		 */
 		for (Inventory inventory : inventories) {
 
@@ -254,32 +272,24 @@ public class InventoryReservationService {
 			long qty =
 				qtyByProductId.get(productId);
 
-			/*
-			 * Inventory의 reserved 증가
-			 */
+			// 실제 Inventory reserved 증가
 			inventory.reserveStock(qty);
 
 			InventoryReservation reservation =
-				reservationByInventoryId.get(
-					inventory.getId()
-				);
+				reservationByProductId.get(productId);
 
+			// 기존에 있던 예약과 처음 예약하는 상품으로 나뉨.
 			if (reservation == null) {
-
-				/*
-				 * 기존 주문에는 없었던 상품.
-				 *
-				 * 예:
-				 * A -> A + B
-				 *
-				 * B는 기존 reservation row가 없으므로
-				 * 새 row를 생성한다.
-				 */
+				// 기존 A, B
+				// 현재 B, C
+				// C는 reservation row 자체가 없으므로 생성.
+				// B는 reserveAgain()으로 다시 예약
 				invReserveRepo.save(
 					InventoryReservation.reserve(
 						order.getId(),
 						inventory.getId(),
-						qty
+						qty,
+						productId
 					)
 				);
 
@@ -287,104 +297,12 @@ public class InventoryReservationService {
 			}
 
 			/*
-			 * 기존 RELEASED row가 있다면
-			 * 새로운 수량으로 다시 활성화한다.
+			 * 기존 주문에도 있었던 상품.
+			 *
+			 * 주문 변경 과정에서 RELEASED되어 있으므로
+			 * 기존 row를 재사용한다.
 			 */
 			reservation.reserveAgain(qty);
-		}
-	}
-
-	/**
-	 *
-	 * 이미 예약되어 있는 수량이랑 주문 비교 검증
-	 */
-	private void validateReservedQuantityMatchesOrder(
-		Order order,
-		List<InventoryReservation> reservations
-	) {
-		// <productId, 주문 수량> map 작성, order 기반
-		Map<Long, Long> requiredQtyByProductId =
-			getOrderQtyByProductId(order);
-
-		/*
-		 * Reservation은 inventoryId만 가지고 있기 때문에
-		 * 해당 Inventory를 통해 productId를 구한다.
-		 */
-		List<Long> inventoryIds =
-			reservations.stream()
-				.map(
-					InventoryReservation::getInventoryId
-				)
-				.distinct()
-				.sorted()
-				.toList();
-
-		List<Inventory> inventories =
-			invRepo.findAllByIdIn(inventoryIds);
-
-		if (inventories.size()
-			!= inventoryIds.size()) {
-			throw new IllegalStateException(
-				"Inventory referenced by reservation does not exist. "
-					+ "orderId=" + order.getId()
-			);
-		}
-
-		// <inventoryId, productId> map 작성
-		Map<Long, Long> productIdByInventoryId =
-			inventories.stream()
-				.collect(
-					Collectors.toMap(
-						Inventory::getId,
-						inventory -> inventory.getProduct().getId()
-					)
-				);
-
-		// <productId, 주문 수량> map 구하기, 이게 진짜 졸라 어렵네
-		Map<Long, Long> reservedQtyByProductId =
-			reservations.stream()
-				.collect(
-					Collectors.groupingBy(
-						reservation -> {
-							Long productId =
-								productIdByInventoryId.get(
-									reservation
-										.getInventoryId()
-								);
-
-							if (productId == null) {
-								throw new IllegalStateException(
-									"Cannot resolve product from inventory. "
-										+ "inventoryId="
-										+ reservation.getInventoryId()
-								);
-							}
-
-							return productId;
-						},
-
-						Collectors.summingLong(
-							InventoryReservation::getQty
-						)
-					)
-				);
-
-		/*
-		 * 현재 주문 수량과 실제 예약 수량이 다르다면
-		 * 정상적인 상태가 아니다.
-		 */
-		if (!requiredQtyByProductId.equals(
-			reservedQtyByProductId
-		)) {
-
-			throw new IllegalStateException(
-				"Reserved inventory does not match order. "
-					+ "orderId=" + order.getId()
-					+ ", required="
-					+ requiredQtyByProductId
-					+ ", reserved="
-					+ reservedQtyByProductId
-			);
 		}
 	}
 

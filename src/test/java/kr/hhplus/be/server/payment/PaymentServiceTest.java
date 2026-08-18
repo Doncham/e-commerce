@@ -21,6 +21,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import kr.hhplus.be.server.api.payment.request.PayResponse;
 import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.application.payment.PaymentOutboxPublisher;
+import kr.hhplus.be.server.application.payment.PaymentPrepareService;
 import kr.hhplus.be.server.application.payment.PaymentReservationProcessor;
 import kr.hhplus.be.server.application.payment.PaymentService;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
@@ -43,6 +44,9 @@ class PaymentServiceTest {
 
 	@InjectMocks
 	private PaymentService paymentService;
+
+	@InjectMocks
+	private PaymentPrepareService paymentPrepareService;
 
 	@Mock
 	private PaymentRepository paymentRepository;
@@ -89,7 +93,7 @@ class PaymentServiceTest {
 		when(paymentRepository.save(any(Payment.class))).thenReturn(saved);
 
 		// when
-		PaymentAttempt attempt = paymentService.preparePayment(orderId, idemKey);
+		PaymentAttempt attempt = paymentPrepareService.preparePayment(orderId, idemKey);
 
 		// then
 		assertEquals(10L, attempt.getPaymentId());
@@ -112,7 +116,7 @@ class PaymentServiceTest {
 
 		// when & then
 		assertThrows(OrderAlreadyPaidOrderException.class,
-			() -> paymentService.preparePayment(orderId));
+			() -> paymentPrepareService.preparePayment(orderId));
 
 		verify(orderRepository).findByIdForUpdate(orderId);
 		verify(paymentRepository, never()).saveAndFlush(any());
@@ -188,7 +192,7 @@ class PaymentServiceTest {
 		assertEquals(PaymentStatus.FAILED, payment.getStatus());
 //		assertEquals("tx-1", response.getTransactionId());
 
-		verify(reservationProcessor).release(order, ReservationReleaseReason."PG_FAILED");
+		verify(reservationProcessor).release(order, ReservationReleaseReason.PAYMENT_FAILED);
 		verify(reservationProcessor, never()).confirm(any(Order.class));
 
 		verify(outboxPublisher, never()).publishPaymentSuccess(any(Order.class), anyString(), any(LocalDateTime.class));

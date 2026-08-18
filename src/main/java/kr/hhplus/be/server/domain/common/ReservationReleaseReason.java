@@ -2,7 +2,6 @@ package kr.hhplus.be.server.domain.common;
 
 public enum ReservationReleaseReason {
 	ORDER_CHANGED,
-	PAYMENT_REPLACED,
 	PAYMENT_EXPIRED,
 	PAYMENT_FAILED,
 	PAYMENT_CANCELED,
