@@ -23,7 +23,7 @@ import kr.hhplus.be.server.api.payment.response.PaymentGatewayResponse;
 import kr.hhplus.be.server.application.payment.PaymentOutboxPublisher;
 import kr.hhplus.be.server.application.payment.PaymentPrepareService;
 import kr.hhplus.be.server.application.payment.PaymentReservationProcessor;
-import kr.hhplus.be.server.application.payment.PaymentService;
+import kr.hhplus.be.server.application.payment.PaymentConfirmService;
 import kr.hhplus.be.server.application.payment.dto.PaymentAttempt;
 import kr.hhplus.be.server.application.payment.pg.PaymentGatewayType;
 import kr.hhplus.be.server.domain.common.ReservationReleaseReason;
@@ -40,10 +40,10 @@ import kr.hhplus.be.server.infrastructure.persistence.order.OrderRepository;
 import kr.hhplus.be.server.infrastructure.persistence.payment.PaymentRepository;
 
 @ExtendWith(MockitoExtension.class)
-class PaymentServiceTest {
+class PaymentConfirmServiceTest {
 
 	@InjectMocks
-	private PaymentService paymentService;
+	private PaymentConfirmService paymentConfirmService;
 
 	@InjectMocks
 	private PaymentPrepareService paymentPrepareService;
@@ -147,7 +147,7 @@ class PaymentServiceTest {
 		);
 
 		// when
-		PayResponse response = paymentService.completePayment(10L, pgResp);
+		PayResponse response = paymentConfirmService.completePayment(10L, pgResp);
 
 		// then
 		assertEquals(OrderStatus.PAID, order.getStatus());
@@ -185,7 +185,7 @@ class PaymentServiceTest {
 		);
 
 		// when
-		PayResponse response = paymentService.completePayment(10L, pgResp);
+		PayResponse response = paymentConfirmService.completePayment(10L, pgResp);
 
 		// then
 		assertEquals(OrderStatus.FAILED, order.getStatus());
@@ -224,7 +224,7 @@ class PaymentServiceTest {
 		);
 
 		// when
-		PayResponse response = paymentService.completePayment(10L, pgResp);
+		PayResponse response = paymentConfirmService.completePayment(10L, pgResp);
 
 		// then
 		assertEquals(OrderStatus.FAILED, order.getStatus());
@@ -262,7 +262,7 @@ class PaymentServiceTest {
 		);
 
 		// when
-		PayResponse response = paymentService.completePayment(10L, pgResp);
+		PayResponse response = paymentConfirmService.completePayment(10L, pgResp);
 
 		// then
 		assertEquals(OrderStatus.FAILED, order.getStatus());
@@ -300,7 +300,7 @@ class PaymentServiceTest {
 		);
 
 		// when
-		PayResponse response = paymentService.completePayment(10L, pgResp);
+		PayResponse response = paymentConfirmService.completePayment(10L, pgResp);
 
 		// then
 		assertEquals(OrderStatus.PAID, order.getStatus());

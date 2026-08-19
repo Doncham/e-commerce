@@ -46,10 +46,10 @@ import kr.hhplus.be.server.infrastructure.persistence.user.UserRepository;
 
 @SpringBootTest
 @Transactional
-class PaymentServiceIntegrationTest {
+class PaymentConfirmServiceIntegrationTest {
 
 	@Autowired
-	private PaymentService paymentService;
+	private PaymentConfirmService paymentConfirmService;
 
 	@Autowired
 	private PaymentCancelRepository paymentCancelRepo;
@@ -106,7 +106,7 @@ class PaymentServiceIntegrationTest {
 			"단순 변심"
 		);
 
-		paymentService.prepareOrGetCancelJob(firstRequest);
+		paymentConfirmService.prepareOrGetCancelJob(firstRequest);
 
 		PaymentCancelRequest secondRequest = cancelRequest(
 			fixture.paymentId(),
@@ -115,7 +115,7 @@ class PaymentServiceIntegrationTest {
 			"단순 변심"
 		);
 
-		assertThatThrownBy(() -> paymentService.prepareOrGetCancelJob(secondRequest))
+		assertThatThrownBy(() -> paymentConfirmService.prepareOrGetCancelJob(secondRequest))
 			.isInstanceOf(DataIntegrityViolationException.class);
 	}
 
@@ -130,7 +130,7 @@ class PaymentServiceIntegrationTest {
 			10000L
 		);
 
-		PaymentCancelResponse response = paymentService.completeCancelPayment(paymentCancel.getId());
+		PaymentCancelResponse response = paymentConfirmService.completeCancelPayment(paymentCancel.getId());
 
 		PaymentCancel reloadedCancel = paymentCancelRepo.findById(paymentCancel.getId()).orElseThrow();
 		List<OrderProduct> linkedProducts = orderProductRepo.findByPaymentCancelId(paymentCancel.getId());
@@ -168,7 +168,7 @@ class PaymentServiceIntegrationTest {
 
 		PaymentCancel finalPaymentCancel = paymentCancel;
 
-		assertThatThrownBy(() -> paymentService.completeCancelPayment(finalPaymentCancel.getId()))
+		assertThatThrownBy(() -> paymentConfirmService.completeCancelPayment(finalPaymentCancel.getId()))
 			.isInstanceOf(PaymentCancelPermanentException.class)
 			.hasMessageContaining("외부 취소가 완료되지 않은 PaymentCancel");
 

@@ -38,15 +38,17 @@ import kr.hhplus.be.server.infrastructure.persistence.order.OrderRepository;
 import kr.hhplus.be.server.infrastructure.persistence.orderproduct.OrderProductRepository;
 import kr.hhplus.be.server.infrastructure.persistence.payment.PaymentRepository;
 import kr.hhplus.be.server.infrastructure.persistence.paymentcancel.PaymentCancelRepository;
+import kr.hhplus.be.server.infrastructure.persistence.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class PaymentService {
+public class PaymentConfirmService {
 	private final PaymentRepository paymentRepo;
 	private final OrderRepository orderRepo;
+	private final UserRepository userRepo;
 	private final OrderProductRepository orderProductRepo;
 	private final PaymentCancelRepository paymentCancelRepo;
 	private final PaymentReservationProcessor reservationProcessor;
@@ -54,6 +56,9 @@ public class PaymentService {
 	private final PointService pointService;
 	private final InventoryService inventoryService;
 	private final Clock clock;
+
+
+	
 
 
 	@Transactional
